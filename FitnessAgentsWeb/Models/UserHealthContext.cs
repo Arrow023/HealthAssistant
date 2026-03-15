@@ -30,5 +30,6 @@ namespace FitnessAgentsWeb.Models
         public string InBodyBrief { get; set; } = "Assume standard baseline.";
         public string ConditionsBrief { get; set; } = "No reported pain or injuries.";
         public string WeeklyHistoryBrief { get; set; } = "No workouts recorded yet this week.";
+        public string FoodPreferences { get; set; } = "No specific food preferences.";
     }
 }

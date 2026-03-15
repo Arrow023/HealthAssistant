@@ -72,8 +72,12 @@ namespace FitnessAgentsWeb.Controllers
             var filePath = Path.Combine(logsDir, name);
             if (!System.IO.File.Exists(filePath)) return NotFound();
 
-            var content = System.IO.File.ReadAllText(filePath);
-            return Content(content, "text/plain");
+            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var reader = new StreamReader(stream))
+            {
+                var content = reader.ReadToEnd();
+                return Content(content, "text/plain");
+            }
         }
 
         [HttpPost]

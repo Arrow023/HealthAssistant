@@ -158,6 +158,10 @@ namespace FitnessAgentsWeb.Core.Services
                 {
                     context.ConditionsBrief = profile.Preferences;
                 }
+                if (!string.IsNullOrEmpty(profile.FoodPreferences))
+                {
+                    context.FoodPreferences = profile.FoodPreferences;
+                }
             }
             else
             {

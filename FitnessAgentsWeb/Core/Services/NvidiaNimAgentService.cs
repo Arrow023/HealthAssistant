@@ -96,6 +96,9 @@ namespace FitnessAgentsWeb.Core.Services
             BMR: {context.InBodyBmr} kcal
             Active Calories Burned Today: {context.VitalsCalories}
             Total Calories Burned Today: {context.VitalsTotalCalories}
+            
+            FOOD PREFERENCES:
+            {context.FoodPreferences}
 
             Provide a 4-meal macro-optimized diet plan for today.
             

@@ -247,6 +247,12 @@
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">This directly informs the <code>ConditionsBrief</code> for the AI Prompt.</p>
             </div>
 
+            <div class="form-group">
+                <label>Food Preferences / Restrictions</label>
+                <textarea name="foodPreferences" rows="4" style="width: 100%; padding: 1rem; border-radius: 10px; border: 2px solid var(--border); font-family: inherit; font-size: 1rem; resize: vertical;" placeholder="E.g., Vegetarian, doesn't like soya chunks but can eat eggs.">@(ViewBag.UserProfile?.FoodPreferences ?? "")</textarea>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">This informs the AI Sports Nutritionist for meal planning.</p>
+            </div>
+
             <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Save Settings</button>
         </form>
 

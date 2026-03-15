@@ -116,7 +116,7 @@ namespace FitnessAgentsWeb.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> UpdatePreferences(string userId, string email, string notificationTime, string preferences, string firstName, string lastName, string newPassword)
+        public async Task<IActionResult> UpdatePreferences(string userId, string email, string notificationTime, string preferences, string foodPreferences, string firstName, string lastName, string newPassword)
         {
             var profiles = await _storageRepository.GetAllUserProfilesAsync();
             if (profiles.TryGetValue(userId, out var profile))
@@ -124,6 +124,7 @@ namespace FitnessAgentsWeb.Controllers
                 profile.Email = email;
                 profile.NotificationTime = notificationTime;
                 profile.Preferences = preferences;
+                profile.FoodPreferences = foodPreferences;
                 profile.FirstName = firstName;
                 profile.LastName = lastName;
                 
