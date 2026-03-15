@@ -14,20 +14,16 @@ namespace FitnessAgentsWeb.Core.Services
         private readonly HealthDataProcessorFactory _processorFactory;
         private readonly AiAgentServiceFactory _aiFactory;
         private readonly NotificationServiceFactory _notificationFactory;
-        private readonly DieticianAgentService _dieticianService;
-
         public AiOrchestratorService(
             StorageRepositoryFactory storageFactory,
             HealthDataProcessorFactory processorFactory,
             AiAgentServiceFactory aiFactory,
-            NotificationServiceFactory notificationFactory,
-            DieticianAgentService dieticianService)
+            NotificationServiceFactory notificationFactory)
         {
             _storageFactory = storageFactory;
             _processorFactory = processorFactory;
             _aiFactory = aiFactory;
             _notificationFactory = notificationFactory;
-            _dieticianService = dieticianService;
         }
 
         public async Task<bool> AppendHealthDataAsync(string userId, HealthExportPayload newPayload)
@@ -86,7 +82,7 @@ namespace FitnessAgentsWeb.Core.Services
                 string workoutMarkdown = await aiAgent.GenerateWorkoutAsync(userContext);
 
                 // Run the AI Dietician (Nutrition - JSON)
-                string dietJsonString = await _dieticianService.GenerateRecoveryDietJsonAsync(workoutMarkdown, userContext);
+                string dietJsonString = await aiAgent.GenerateRecoveryDietJsonAsync(workoutMarkdown, userContext);
                 
                 DietPlan? dietPlan = null;
                 string dietMarkdown = "No diet generated.";

@@ -1,10 +1,17 @@
 using FitnessAgentsWeb.Core.Configuration;
+using FitnessAgentsWeb.Core.Logging;
+using System.IO;
 using FitnessAgentsWeb.Core.Factories;
 using FitnessAgentsWeb.Core.Interfaces;
 using FitnessAgentsWeb.Core.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure custom file logger provider (weekly files, prune older than 7 days)
+var logsFolder = Path.Combine(builder.Environment.ContentRootPath, "Logs");
+builder.Logging.ClearProviders();
+builder.Logging.AddProvider(new FileLoggerProvider(logsFolder));
 
 // Add MVC services for upcoming Dashboard
 builder.Services.AddControllersWithViews();
@@ -20,6 +27,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 // Register Factories
 builder.Services.AddSingleton<ConfigurationProviderFactory>();
 builder.Services.AddSingleton<IAppConfigurationManager, FirebaseSettingsProvider>();
+builder.Services.AddSingleton<IAppConfigurationProvider>(sp => sp.GetRequiredService<IAppConfigurationManager>());
 builder.Services.AddSingleton<StorageRepositoryFactory>();
 
 // Expose IStorageRepository directly for Controllers
@@ -37,7 +45,6 @@ builder.Services.AddSingleton<HealthDataProcessorFactory>();
 builder.Services.AddSingleton<AiAgentServiceFactory>();
 builder.Services.AddSingleton<NotificationServiceFactory>();
 builder.Services.AddSingleton<InBodyOcrService>();
-builder.Services.AddSingleton<DieticianAgentService>();
 builder.Services.AddSingleton<IAiOrchestratorService, AiOrchestratorService>();
 
 // Register Background Service

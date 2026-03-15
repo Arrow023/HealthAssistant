@@ -12,11 +12,13 @@ namespace FitnessAgentsWeb.Controllers
     {
         private readonly IStorageRepository _storageRepository;
         private readonly Core.Configuration.IAppConfigurationManager _appConfig;
+        private readonly Microsoft.Extensions.Logging.ILogger<AdminController> _logger;
 
-        public AdminController(IStorageRepository storageRepository, Core.Configuration.IAppConfigurationManager appConfig)
+        public AdminController(IStorageRepository storageRepository, Core.Configuration.IAppConfigurationManager appConfig, Microsoft.Extensions.Logging.ILogger<AdminController> logger)
         {
             _storageRepository = storageRepository;
             _appConfig = appConfig;
+            _logger = logger;
         }
 
         public async Task<IActionResult> Settings()
@@ -46,6 +48,32 @@ namespace FitnessAgentsWeb.Controllers
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
             ViewBag.BaseUrl = baseUrl;
             return View(users);
+        }
+
+        // Lists available log files (from Logs folder)
+        public IActionResult Logs()
+        {
+            var logsDir = System.IO.Path.Combine(Directory.GetCurrentDirectory(), "Logs");
+            if (!Directory.Exists(logsDir)) Directory.CreateDirectory(logsDir);
+
+            var files = Directory.GetFiles(logsDir, "*.txt")
+                .Select(f => new { Name = Path.GetFileName(f), Path = f })
+                .OrderByDescending(f => f.Name)
+                .ToList();
+
+            return View(files);
+        }
+
+        // Returns raw content of a specific log file
+        public IActionResult LogFile(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return BadRequest();
+            var logsDir = System.IO.Path.Combine(Directory.GetCurrentDirectory(), "Logs");
+            var filePath = Path.Combine(logsDir, name);
+            if (!System.IO.File.Exists(filePath)) return NotFound();
+
+            var content = System.IO.File.ReadAllText(filePath);
+            return Content(content, "text/plain");
         }
 
         [HttpPost]

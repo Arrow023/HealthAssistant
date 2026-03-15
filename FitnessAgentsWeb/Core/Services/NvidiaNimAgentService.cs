@@ -6,31 +6,22 @@ using Microsoft.Agents.AI.Workflows;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using System;
+using Microsoft.Extensions.Logging;
 using System.ClientModel;
 using System.Threading.Tasks;
 
 namespace FitnessAgentsWeb.Core.Services
 {
-    public class NvidiaNimAgentService : IAiAgentService
+    public class NvidiaNimAgentService : BaseAiAgentService, IAiAgentService
     {
-        private readonly IAppConfigurationProvider _configProvider;
-
-        public NvidiaNimAgentService(IAppConfigurationProvider configProvider)
+        public NvidiaNimAgentService(IAppConfigurationProvider configProvider, ILogger<NvidiaNimAgentService> logger)
+            : base(configProvider, logger)
         {
-            _configProvider = configProvider;
         }
 
         public async Task<string> GenerateWorkoutAsync(Models.UserHealthContext context)
         {
-            string aiKey = _configProvider.GetAiKey();
-            string aiEndpoint = _configProvider.GetAiEndpoint();
-            string aiModel = _configProvider.GetAiModel();
-
-            var openAiClient = new OpenAIClient(
-                new ApiKeyCredential(aiKey),
-                new OpenAIClientOptions { Endpoint = new Uri(aiEndpoint) }
-            );
-            IChatClient chatClient = openAiClient.GetChatClient(aiModel).AsIChatClient();
+            IChatClient chatClient = GetChatClient();
 
             var tools = new HealthDataTools(context);
 
@@ -81,7 +72,7 @@ namespace FitnessAgentsWeb.Core.Services
             AIAgent workflowAgent = workflow.AsAIAgent(name: "DailyWorkoutEngine");
             AgentSession session = await workflowAgent.CreateSessionAsync();
 
-            Console.WriteLine("[System] Agents are deliberating...");
+            _logger.LogInformation("[System] Agents are deliberating...");
 
             string finalWorkout = "";
             await foreach (var update in workflowAgent.RunStreamingAsync("Generate today's workout plan.", session))
@@ -92,6 +83,66 @@ namespace FitnessAgentsWeb.Core.Services
                     }
                 }
             return finalWorkout;
+        }
+        public async Task<string> GenerateRecoveryDietJsonAsync(string upcomingWorkoutPlan, Models.UserHealthContext context)
+        {
+            IChatClient chatClient = GetChatClient();
+
+            string prompt = $@"STRICT RESTRCTION: DO NOT include any reasoning, thought process, or preamble. Return ONLY the JSON object.
+            
+            You are a leading Clinical Sports Nutritionist.
+            Your client, {context.FirstName}, has just received the following training protocol for today:
+            
+            WORKOUT PLAN:
+            {upcomingWorkoutPlan}
+
+            USER BASELINE:
+            Weight: {context.InBodyWeight} kg
+            Body Fat: {context.InBodyBf}%
+            BMR: {context.InBodyBmr} kcal
+            Active Calories Burned Today: {context.VitalsCalories}
+            Total Calories Burned Today: {context.VitalsTotalCalories}
+
+            Provide a 4-meal macro-optimized diet plan for today.
+            
+            JSON Schema:
+            {{
+                ""plan_date"": ""string (ISO8601 format)"",
+                ""total_calories_target"": ""number (total daily target)"",
+                ""meals"": [
+                    {{ ""meal_type"": ""string (e.g., Morning, Lunch, Evening, Dinner)"", ""food_name"": ""string"", ""quantity_description"": ""string (e.g., 200g, 1 cup)"", ""calories"": ""number"" }}
+                ],
+                ""ai_summary"": ""string (Brief expert rationale)""
+            }}";
+
+            AIAgent dieticianAgent = chatClient.AsAIAgent(
+                name: "Dietician_Planner",
+                instructions: "You are an elite sports nutritionist. Your output MUST be a valid JSON object matching the requested schema. Use the schema values as type indicators. DO NOT copy example text. Provide real nutritional data for this specific client."
+            );
+
+            AgentSession session = await dieticianAgent.CreateSessionAsync();
+            _logger.LogInformation("[Diet AI] Agent is planning recovery diet...");
+
+            try
+            {
+                string aiResponse = "";
+                await foreach (var update in dieticianAgent.RunStreamingAsync(prompt, session))
+                {
+                    if (update.Text != null)
+                    {
+                        aiResponse += update.Text;
+                    }
+                }
+                
+                _logger.LogInformation($"[Diet AI Raw Response] {aiResponse}");
+
+                return ExtractJson(aiResponse);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[Diet AI] Error generating diet: {ex.Message}");
+                return "{}";
+            }
         }
     }
 }

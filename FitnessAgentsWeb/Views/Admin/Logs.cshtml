@@ -1,0 +1,13 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2>Log Files</h2>
+<ul>
+@foreach (var f in Model)
+{
+    <li>
+        <a href="@Url.Action("LogFile", "Admin", new { name = f.Name })">@f.Name</a>
+    </li>
+}
+</ul>
