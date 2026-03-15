@@ -81,6 +81,40 @@ namespace FitnessAgentsWeb.Core.Services
             await File.WriteAllTextAsync(path, json);
         }
 
+        public async Task<WeeklyDietHistory?> GetWeeklyDietHistoryAsync(string userId)
+        {
+            DateTime nowIst = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _istZone);
+            int diff = (7 + (nowIst.DayOfWeek - DayOfWeek.Sunday)) % 7;
+            DateTime currentWeekSunday = nowIst.AddDays(-1 * diff).Date;
+
+            WeeklyDietHistory history = new() { WeekStartDate = currentWeekSunday };
+            string path = Path.Combine(_appDataFolder, $"weekly_diet_history_{userId}.json");
+
+            if (File.Exists(path))
+            {
+                try
+                {
+                    string json = await File.ReadAllTextAsync(path);
+                    var existingHistory = JsonSerializer.Deserialize<WeeklyDietHistory>(json);
+                    
+                    if (existingHistory != null && existingHistory.WeekStartDate == currentWeekSunday)
+                    {
+                        history = existingHistory;
+                    }
+                }
+                catch { }
+            }
+
+            return history;
+        }
+
+        public async Task SaveWeeklyDietHistoryAsync(string userId, WeeklyDietHistory history)
+        {
+            string path = Path.Combine(_appDataFolder, $"weekly_diet_history_{userId}.json");
+            string json = JsonSerializer.Serialize(history, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(path, json);
+        }
+
         public async Task<InBodyExport?> GetLatestInBodyDataAsync(string userId)
         {
             string path = Path.Combine(_appDataFolder, $"latest_inbody_{userId}.json");

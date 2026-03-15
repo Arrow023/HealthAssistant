@@ -126,7 +126,7 @@ namespace FitnessAgentsWeb.Core.Services
                         var workoutData = JsonDocument.Parse(workoutJsonString).RootElement;
                         var sb = new System.Text.StringBuilder();
                         sb.AppendLine($"# {workoutData.GetProperty("session_title").GetString()}");
-                        sb.AppendLine($"> Date: {workoutData.GetProperty("plan_date").GetString()}\n");
+                        sb.AppendLine($"<p style='font-size: 0.85rem; color: #6b7280; margin-top: -10px;'>Date: {workoutData.GetProperty("plan_date").GetString()}</p>\n");
 
                         if (workoutData.TryGetProperty("personalized_introduction", out var intro))
                         {
@@ -168,8 +168,9 @@ namespace FitnessAgentsWeb.Core.Services
 
                 string finalMarkdown = workoutMarkdown + "\n\n---\n\n" + dietMarkdown;
 
-                // Save to History
+                // Save to History (Workout & Diet)
                 var weeklyHistory = await storageRepo.GetWeeklyHistoryAsync(userId) ?? new WeeklyWorkoutHistory();
+                var weeklyDietHistory = await storageRepo.GetWeeklyDietHistoryAsync(userId) ?? new WeeklyDietHistory();
 
                 DateTime nowIst;
                 try { nowIst = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")); }
@@ -179,6 +180,12 @@ namespace FitnessAgentsWeb.Core.Services
 
                 weeklyHistory.PastWorkouts[todayString] = finalMarkdown;
                 await storageRepo.SaveWeeklyHistoryAsync(userId, weeklyHistory);
+
+                if (dietPlan != null)
+                {
+                    weeklyDietHistory.PastDiets[todayString] = dietPlan;
+                    await storageRepo.SaveWeeklyDietHistoryAsync(userId, weeklyDietHistory);
+                }
 
                 // Send the Email
                 if (!string.IsNullOrEmpty(userContext.Email))

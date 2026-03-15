@@ -31,5 +31,6 @@ namespace FitnessAgentsWeb.Models
         public string ConditionsBrief { get; set; } = "No reported pain or injuries.";
         public string WeeklyHistoryBrief { get; set; } = "No workouts recorded yet this week.";
         public string FoodPreferences { get; set; } = "No specific food preferences.";
+        public string DietHistoryBrief { get; set; } = "No previous diet history for this week.";
     }
 }

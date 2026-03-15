@@ -123,6 +123,60 @@ namespace FitnessAgentsWeb.Core.Services
             }
         }
 
+        public async Task<WeeklyDietHistory?> GetWeeklyDietHistoryAsync(string userId)
+        {
+            userId = Norm(userId);
+            TimeZoneInfo istZone;
+            try { istZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time"); }
+            catch { 
+                try { istZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"); }
+                catch { istZone = TimeZoneInfo.Local; } 
+            }
+
+            DateTime nowIst = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, istZone);
+            int diff = (7 + (nowIst.DayOfWeek - DayOfWeek.Sunday)) % 7;
+            DateTime currentWeekSunday = nowIst.AddDays(-1 * diff).Date;
+            
+            WeeklyDietHistory history = new() { WeekStartDate = currentWeekSunday };
+
+            try
+            {
+                var snapshot = await _firebaseClient
+                    .Child("users")
+                    .Child(userId)
+                    .Child("weekly_diet_history")
+                    .OnceSingleAsync<WeeklyDietHistory>();
+                
+                if (snapshot != null && snapshot.WeekStartDate == currentWeekSunday)
+                {
+                    history = snapshot;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, $"[FirebaseStorage] Diet history unavailable for {userId}. Creating new week slice.");
+            }
+
+            return history;
+        }
+
+        public async Task SaveWeeklyDietHistoryAsync(string userId, WeeklyDietHistory history)
+        {
+            userId = Norm(userId);
+            try
+            {
+                await _firebaseClient
+                    .Child("users")
+                    .Child(userId)
+                    .Child("weekly_diet_history")
+                    .PutAsync(history);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"[FirebaseStorage] Failed saving weekly diet history for {userId}");
+            }
+        }
+
         // --- INBODY ---
         public async Task<InBodyExport?> GetLatestInBodyDataAsync(string userId)
         {

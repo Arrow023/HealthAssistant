@@ -146,6 +146,19 @@ namespace FitnessAgentsWeb.Core.Services
                 context.WeeklyHistoryBrief = "It's the start of a new week. No workouts completed yet.";
             }
 
+            // Load Weekly Diet History
+            var weeklyDiet = await _storageRepository.GetWeeklyDietHistoryAsync(userId);
+            if (weeklyDiet != null && weeklyDiet.PastDiets.Any())
+            {
+                var summaries = weeklyDiet.PastDiets.Select(kvp => 
+                    $"{kvp.Key}: {kvp.Value.TotalCaloriesTarget} kcal - {kvp.Value.AiSummary}");
+                context.DietHistoryBrief = "This week's consumed diets:\n" + string.Join("\n", summaries);
+            }
+            else
+            {
+                context.DietHistoryBrief = "No previous diet history for this week. This is the first professional diet plan.";
+            }
+
             // Load User Profile (FirstName & Preferences)
             _logger.LogInformation($"[HealthProcessor] Loading profile for: {userId} (normalized if needed by repo)");
             var profile = await _storageRepository.GetUserProfileAsync(userId);

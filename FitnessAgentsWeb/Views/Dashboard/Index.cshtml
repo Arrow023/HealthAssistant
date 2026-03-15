@@ -19,7 +19,7 @@
         </div>
         
         <div class="metric-card" style="background: linear-gradient(135deg, #f97316, #ea580c); color: white;">
-            <h3 style="color: rgba(255,255,255,0.8);">Water / Sleep</h3>
+            <h3 style="color: rgba(255,255,255,0.8);">Sleep</h3>
             <div class="value" style="color: white; -webkit-text-fill-color: white;">@(ViewBag.UserHealthContext?.VitalsSleepTotal ?? "--")</div>
             <div style="font-size: 0.85rem; margin-top: 0.5rem; opacity: 0.9;">Today's Total Sleep</div>
         </div>
@@ -83,13 +83,13 @@
                 <div style="display: grid; grid-template-columns: 1fr; gap: 1rem;">
                     @foreach(var meal in diet.Meals)
                     {
-                        <div style="background: white; padding: 1rem 1.5rem; border-radius: 12px; box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: space-between; border-left: 4px solid var(--secondary);">
-                            <div>
+                        <div style="background: white; padding: 1rem 1.5rem; border-radius: 12px; box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: space-between; border-left: 4px solid var(--secondary); flex-wrap: wrap; gap: 0.5rem;">
+                            <div style="flex: 1; min-width: 200px;">
                                 <span style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; color: var(--secondary); display: block; margin-bottom: 0.2rem;">@meal.MealType</span>
-                                <span style="font-size: 1.1rem; font-weight: 700; color: var(--text);">@meal.FoodName</span>
-                                <span style="color: var(--text-muted); font-size: 0.9rem; margin-left: 0.5rem;">(@meal.QuantityDescription)</span>
+                                <span style="font-size: 1.1rem; font-weight: 700; color: var(--text); word-break: break-word;">@meal.FoodName</span>
+                                <span style="color: var(--text-muted); font-size: 0.9rem; margin-left: 0.5rem; display: inline-block;">(@meal.QuantityDescription)</span>
                             </div>
-                            <div style="font-weight: 800; color: var(--primary); font-size: 1.1rem;">
+                            <div style="font-weight: 800; color: var(--primary); font-size: 1.1rem; white-space: nowrap;">
                                 @meal.Calories kcal
                             </div>
                         </div>
@@ -97,13 +97,50 @@
                 </div>
             </div>
         }
-        else
-        {
-            <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
-                <i class="fa-solid fa-bowl-food" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                <p>No diet plan active. Trigger generation to map meals.</p>
-            </div>
-        }
+        
+
+        <!-- Diet History Section -->
+        <div style="margin-top: 3rem;">
+            <h3 class="section-title" style="font-size: 1.5rem; margin-bottom: 1rem;">Diet History</h3>
+            <p class="section-subtitle">This week's nutritional tracking.</p>
+
+            @if (ViewBag.HasDietHistory)
+            {
+                var dietHistory = (FitnessAgentsWeb.Models.WeeklyDietHistory)ViewBag.DietHistoryData;
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
+                    @foreach (var dayPlan in dietHistory.PastDiets.OrderByDescending(x => x.Key))
+                    {
+                        <div class="glass-panel" style="padding: 1.2rem; border: 1px solid var(--border); box-shadow: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                                <span style="font-weight: 800; color: var(--secondary); text-transform: uppercase; font-size: 0.85rem;">@dayPlan.Key</span>
+                                <span style="font-weight: 700; font-size: 0.9rem;">@dayPlan.Value.TotalCaloriesTarget kcal</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 1rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">@dayPlan.Value.AiSummary</p>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem;">
+                                @foreach (var m in dayPlan.Value.Meals.Take(2))
+                                {
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span style="color: var(--text);">@m.FoodName</span>
+                                        <span style="color: var(--text-muted);">@m.Calories kcal</span>
+                                    </div>
+                                }
+                                @if (dayPlan.Value.Meals.Count > 2)
+                                {
+                                    <span style="color: var(--secondary); font-style: italic; font-size: 0.75rem;">+ @(dayPlan.Value.Meals.Count - 2) more meals...</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div style="background: rgba(0,0,0,0.03); padding: 2rem; border-radius: 12px; text-align: center; border: 1px dashed var(--border);">
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">No meal history for this week. Start today's plan!</p>
+                </div>
+            }
+        </div>
     </div>
 </div>
 

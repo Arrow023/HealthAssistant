@@ -43,6 +43,7 @@ namespace FitnessAgentsWeb.Controllers
             var history = await _storageRepository.GetWeeklyHistoryAsync(userId);
             var inBody = await _storageRepository.GetLatestInBodyDataAsync(userId);
             var diet = await _storageRepository.GetLatestDietAsync(userId);
+            var dietHistory = await _storageRepository.GetWeeklyDietHistoryAsync(userId);
             
             var profiles = await _storageRepository.GetAllUserProfilesAsync();
             if (profiles.TryGetValue(userId, out var profile))
@@ -52,6 +53,7 @@ namespace FitnessAgentsWeb.Controllers
 
             ViewBag.HasHealthData = healthData != null;
             ViewBag.HasHistory = history != null && history.PastWorkouts.Count > 0;
+            ViewBag.HasDietHistory = dietHistory != null && dietHistory.PastDiets.Count > 0;
             ViewBag.HasInBody = inBody != null;
             
             // Pass data down for Chart.js and Tabs
@@ -59,6 +61,7 @@ namespace FitnessAgentsWeb.Controllers
             ViewBag.InBodyData = inBody;
             ViewBag.HistoryData = history;
             ViewBag.DietData = diet;
+            ViewBag.DietHistoryData = dietHistory;
 
             // NEW: Use the unified processor to get the structured context (IST filtered, Name/InBody mapped)
             var processor = HttpContext.RequestServices.GetRequiredService<IHealthDataProcessor>();

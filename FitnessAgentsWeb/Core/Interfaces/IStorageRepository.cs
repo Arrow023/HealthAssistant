@@ -11,6 +11,9 @@ namespace FitnessAgentsWeb.Core.Interfaces
         Task<WeeklyWorkoutHistory?> GetWeeklyHistoryAsync(string userId);
         Task SaveWeeklyHistoryAsync(string userId, WeeklyWorkoutHistory history);
 
+        Task<WeeklyDietHistory?> GetWeeklyDietHistoryAsync(string userId);
+        Task SaveWeeklyDietHistoryAsync(string userId, WeeklyDietHistory history);
+
         Task<InBodyExport?> GetLatestInBodyDataAsync(string userId);
         Task SaveLatestInBodyDataAsync(string userId, string jsonPayload);
 

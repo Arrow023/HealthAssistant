@@ -100,6 +100,9 @@ namespace FitnessAgentsWeb.Core.Services
             FOOD PREFERENCES:
             {context.FoodPreferences}
 
+            DIET HISTORY:
+            {context.DietHistoryBrief}
+
             Provide a 4-meal macro-optimized diet plan for today.
             
             JSON Schema:

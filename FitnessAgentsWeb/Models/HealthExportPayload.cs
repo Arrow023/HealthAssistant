@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -95,4 +95,10 @@ public record WeeklyWorkoutHistory
 {
     [JsonPropertyName("week_start_date")] public DateTime WeekStartDate { get; set; }
     [JsonPropertyName("past_workouts")] public Dictionary<string, string> PastWorkouts { get; set; } = new();
+}
+
+public record WeeklyDietHistory
+{
+    [JsonPropertyName("week_start_date")] public DateTime WeekStartDate { get; set; }
+    [JsonPropertyName("past_diets")] public Dictionary<string, DietPlan> PastDiets { get; set; } = new();
 }
