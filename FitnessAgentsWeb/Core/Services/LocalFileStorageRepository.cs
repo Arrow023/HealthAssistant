@@ -102,6 +102,11 @@ namespace FitnessAgentsWeb.Core.Services
             return Task.FromResult(new System.Collections.Generic.Dictionary<string, UserProfile>());
         }
 
+        public Task<UserProfile?> GetUserProfileAsync(string userId)
+        {
+            return Task.FromResult<UserProfile?>(null);
+        }
+
         public Task SaveUserProfileAsync(string userId, UserProfile profile)
         {
             return Task.CompletedTask;

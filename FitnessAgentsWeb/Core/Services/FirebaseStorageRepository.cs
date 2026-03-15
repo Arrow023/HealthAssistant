@@ -196,6 +196,26 @@ namespace FitnessAgentsWeb.Core.Services
             return users;
         }
 
+        public async Task<UserProfile?> GetUserProfileAsync(string userId)
+        {
+            userId = Norm(userId);
+            try
+            {
+                var snapshot = await _firebaseClient
+                    .Child("users")
+                    .Child(userId)
+                    .Child("profile")
+                    .OnceSingleAsync<UserProfile>();
+                
+                return snapshot;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FirebaseStorage] Failed getting profile for {userId}: {ex.Message}");
+                return null;
+            }
+        }
+
         public async Task SaveUserProfileAsync(string userId, UserProfile profile)
         {
             userId = Norm(userId);

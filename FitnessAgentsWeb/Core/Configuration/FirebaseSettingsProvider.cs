@@ -23,8 +23,13 @@ namespace FitnessAgentsWeb.Core.Configuration
         private string _ocrEndpoint = string.Empty;
 
         private string _smtpPassword = string.Empty;
+        private string _smtpHost = string.Empty;
+        private string _smtpPort = string.Empty;
         private string _fromEmail = string.Empty;
         private string _toEmail = string.Empty;
+
+        private string _adminEmail = string.Empty;
+        private string _adminPassword = string.Empty;
 
         public FirebaseSettingsProvider(IConfiguration configuration)
         {
@@ -134,8 +139,13 @@ namespace FitnessAgentsWeb.Core.Configuration
                     _ocrEndpoint = snapshot.ContainsKey("OcrEndpoint") ? snapshot["OcrEndpoint"].ToString()! : "";
 
                     _smtpPassword = snapshot.ContainsKey("SmtpPassword") ? snapshot["SmtpPassword"].ToString()! : "";
+                    _smtpHost = snapshot.ContainsKey("SmtpHost") ? snapshot["SmtpHost"].ToString()! : "";
+                    _smtpPort = snapshot.ContainsKey("SmtpPort") ? snapshot["SmtpPort"].ToString()! : "";
                     _fromEmail = snapshot.ContainsKey("FromEmail") ? snapshot["FromEmail"].ToString()! : "";
                     _toEmail = snapshot.ContainsKey("ToEmail") ? snapshot["ToEmail"].ToString()! : "";
+
+                    _adminEmail = snapshot.ContainsKey("AdminEmail") ? snapshot["AdminEmail"].ToString()! : "";
+                    _adminPassword = snapshot.ContainsKey("AdminPassword") ? snapshot["AdminPassword"].ToString()! : "";
                     
                     Console.WriteLine($"[FirebaseSettingsProvider] Loaded global settings from Realtime DB");
                 }
@@ -159,7 +169,12 @@ namespace FitnessAgentsWeb.Core.Configuration
         public string GetOcrEndpoint() => _ocrEndpoint;
 
         public string GetSmtpPassword() => _smtpPassword;
+        public string GetSmtpHost() => _smtpHost;
+        public string GetSmtpPort() => _smtpPort;
         public string GetFromEmail() => _fromEmail;
-        public string GetToEmail() => _toEmail; // Can be linked to admin email for now
+        public string GetToEmail() => _toEmail; 
+
+        public string GetAdminEmail() => _adminEmail;
+        public string GetAdminPassword() => _adminPassword;
     }
 }

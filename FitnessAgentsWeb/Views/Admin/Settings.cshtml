@@ -1,0 +1,89 @@
+@using FitnessAgentsWeb.Core.Configuration
+@model IAppConfigurationManager
+@{
+    ViewData["Title"] = "Global App Configuration";
+}
+
+<div class="glass-panel" style="margin-bottom: 2rem; background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(243,244,246,0.9));">
+    <h1 class="section-title">Global App Configuration</h1>
+    <p class="section-subtitle">Manage AI models, API keys, and notification systems for the entire application.</p>
+</div>
+
+<form method="post" action="/Admin/UpdateSettings">
+    <div class="form-grid">
+        <!-- AI Orchestration -->
+        <div class="glass-panel">
+            <h3 style="margin-top: 0; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem;">AI Orchestration (Nim/OpenAI)</h3>
+            <div class="form-group" style="margin-top: 1rem;">
+                <label>Model ID</label>
+                <input type="text" name="aiModel" value="@Model.GetAiModel()" required />
+            </div>
+            <div class="form-group">
+                <label>Endpoint URL</label>
+                <input type="text" name="aiEndpoint" value="@Model.GetAiEndpoint()" required />
+            </div>
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" name="aiKey" value="@Model.GetAiKey()" required />
+            </div>
+        </div>
+
+        <!-- Computer Vision (OCR) -->
+        <div class="glass-panel">
+            <h3 style="margin-top: 0; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem;">OCR Vision (InBody Analysis)</h3>
+            <div class="form-group" style="margin-top: 1rem;">
+                <label>OCR Model ID</label>
+                <input type="text" name="ocrModel" value="@Model.GetOcrModel()" required />
+            </div>
+            <div class="form-group">
+                <label>OCR Endpoint</label>
+                <input type="text" name="ocrEndpoint" value="@Model.GetOcrEndpoint()" required />
+            </div>
+            <div class="form-group">
+                <label>OCR API Key</label>
+                <input type="password" name="ocrKey" value="@Model.GetOcrKey()" required />
+            </div>
+        </div>
+
+        <!-- SMTP & Notifications -->
+        <div class="glass-panel">
+            <h3 style="margin-top: 0; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem;">SMTP Email Delivery</h3>
+            <div class="form-group" style="margin-top: 1rem;">
+                <label>SMTP Host</label>
+                <input type="text" name="smtpHost" value="@Model.GetSmtpHost()" required />
+            </div>
+            <div class="form-group">
+                <label>SMTP Port</label>
+                <input type="text" name="smtpPort" value="@Model.GetSmtpPort()" required />
+            </div>
+            <div class="form-group">
+                <label>Sender Email (From)</label>
+                <input type="email" name="fromEmail" value="@Model.GetFromEmail()" required />
+            </div>
+            <div class="form-group">
+                <label>SMTP App Password</label>
+                <input type="password" name="smtpPassword" value="@Model.GetSmtpPassword()" required />
+            </div>
+        </div>
+
+        <!-- Admin Access -->
+        <div class="glass-panel">
+            <h3 style="margin-top: 0; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem;">Admin Access Control</h3>
+            <div class="form-group" style="margin-top: 1rem;">
+                <label>Master Admin Email</label>
+                <input type="email" name="adminEmail" value="@Model.GetAdminEmail()" required />
+            </div>
+            <div class="form-group">
+                <label>Master Admin Password</label>
+                <input type="password" name="adminPassword" value="@Model.GetAdminPassword()" required />
+            </div>
+            <p style="font-size: 0.8rem; color: #ef4444; font-weight: 600;">Caution: Changing these will update your login credentials immediately.</p>
+        </div>
+    </div>
+
+    <div style="margin-top: 2rem; display: flex; justify-content: flex-end;">
+        <button type="submit" class="btn" style="padding: 1rem 3rem; font-size: 1.1rem;">
+            <i class="fa-solid fa-cloud-arrow-up" style="margin-right: 8px;"></i> Commit Global Changes
+        </button>
+    </div>
+</form>

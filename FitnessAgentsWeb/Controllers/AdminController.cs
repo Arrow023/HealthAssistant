@@ -11,10 +11,33 @@ namespace FitnessAgentsWeb.Controllers
     public class AdminController : Controller
     {
         private readonly IStorageRepository _storageRepository;
+        private readonly Core.Configuration.IAppConfigurationManager _appConfig;
 
-        public AdminController(IStorageRepository storageRepository)
+        public AdminController(IStorageRepository storageRepository, Core.Configuration.IAppConfigurationManager appConfig)
         {
             _storageRepository = storageRepository;
+            _appConfig = appConfig;
+        }
+
+        public async Task<IActionResult> Settings()
+        {
+            return View(_appConfig);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateSettings(
+            string adminEmail, string adminPassword, 
+            string aiModel, string aiEndpoint, string aiKey, 
+            string ocrModel, string ocrEndpoint, string ocrKey,
+            string smtpHost, string smtpPort, string fromEmail, string smtpPassword)
+        {
+            await _appConfig.SaveSetupSettingsAsync(
+                adminEmail, adminPassword, 
+                aiModel, aiEndpoint, aiKey, 
+                ocrModel, ocrEndpoint, ocrKey,
+                smtpHost, smtpPort, fromEmail, smtpPassword);
+
+            return RedirectToAction("Settings");
         }
 
         public async Task<IActionResult> Users()

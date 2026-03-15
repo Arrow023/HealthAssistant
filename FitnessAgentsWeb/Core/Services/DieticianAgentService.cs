@@ -23,7 +23,9 @@ namespace FitnessAgentsWeb.Core.Services
             string aiModel = _configManager.GetAiModel();
             string aiEndpoint = _configManager.GetAiEndpoint();
 
-            string prompt = $@"You are a leading Clinical Sports Nutritionist.
+            string prompt = $@"STRICT RESTRCTION: DO NOT include any reasoning, thought process, or preamble. Return ONLY the JSON object.
+            
+            You are a leading Clinical Sports Nutritionist.
             Your client, {context.FirstName}, has just received the following training protocol for today:
             
             WORKOUT PLAN:
@@ -36,9 +38,9 @@ namespace FitnessAgentsWeb.Core.Services
             Active Calories Burned Today: {context.VitalsCalories}
             Total Calories Burned Today: {context.VitalsTotalCalories}
 
-            Provide a highly actionable, concise 4-meal macro-optimized diet plan for today to fuel and recover from this specific workout, taking into account their total calorie burn and BMR.
-
-            IMPORTANT: You MUST return strictly valid JSON matching exactly this schema, and NOTHING else. No markdown wrappers, no introductory text:
+            Provide a 4-meal macro-optimized diet plan for today.
+            
+            JSON Schema:
             {{
                 ""plan_date"": ""2026-03-15T00:00:00Z"",
                 ""total_calories_target"": 2500,
@@ -63,20 +65,30 @@ namespace FitnessAgentsWeb.Core.Services
                         content = prompt
                     }
                 },
-                max_tokens = 1000,
-                temperature = 0.2 // Lower temp for strict JSON adherence
+                max_tokens = 8000,
+                temperature = 0.1,
+                response_format = new { type = "json_object" }
             };
 
             using var client = new HttpClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", aiKey);
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
+            
             var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             
+            // Construct full URL if endpoint doesn't end with chat/completions
+            string fullUrl = aiEndpoint;
+            if (!fullUrl.EndsWith("/chat/completions"))
+            {
+                fullUrl = fullUrl.TrimEnd('/') + "/chat/completions";
+            }
+
             try
             {
-                var response = await client.PostAsync($"{aiEndpoint}/chat/completions", content);
+                var response = await client.PostAsync(fullUrl, content);
                 string responseJson = await response.Content.ReadAsStringAsync();
+                
+                Console.WriteLine($"[Diet AI Raw JSON] {responseJson}");
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -87,7 +99,15 @@ namespace FitnessAgentsWeb.Core.Services
                 using JsonDocument doc = JsonDocument.Parse(responseJson);
                 if (doc.RootElement.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
                 {
-                    string aiText = choices[0].GetProperty("message").GetProperty("content").GetString() ?? "";
+                    var firstChoice = choices[0];
+                    string aiText = "";
+                    
+                    if (firstChoice.TryGetProperty("message", out var message) && message.TryGetProperty("content", out var contentProp))
+                    {
+                        aiText = contentProp.GetString() ?? "";
+                    }
+
+                    Console.WriteLine($"[Diet AI Content] Length: {aiText.Length}");
 
                     // Strip potential preamble or markdown wrappers
                     int start = aiText.IndexOf('{');
@@ -99,11 +119,8 @@ namespace FitnessAgentsWeb.Core.Services
                     
                     return aiText.Trim();
                 }
-                else
-                {
-                    Console.WriteLine($"[Diet AI Error] Response did not contain 'choices'. JSON: {responseJson}");
-                    return "{}";
-                }
+                
+                return "{}";
             }
             catch(Exception ex)
             {

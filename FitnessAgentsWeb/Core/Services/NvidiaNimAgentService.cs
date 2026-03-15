@@ -35,6 +35,7 @@ namespace FitnessAgentsWeb.Core.Services
             var tools = new HealthDataTools(context);
 
             AIAgent analystAgent = chatClient.AsAIAgent(
+                name: "Physiological_Analyst",
                 instructions: $@"You are an elite sports scientist. Your client is {context.FirstName}. 
 
                     Execute your tools to gather:
@@ -60,6 +61,7 @@ namespace FitnessAgentsWeb.Core.Services
             );
 
             AIAgent coachAgent = chatClient.AsAIAgent(
+                name: "Strength_Coach",
                 instructions: $@"You are an elite personal trainer specializing in biomechanics and adaptive programming. You are writing an email directly to your client, {context.FirstName}. 
                     You will receive a physiological brief from the Analyst. Your task is to design today's exact workout plan based on the Analyst's report. 
 
@@ -85,10 +87,10 @@ namespace FitnessAgentsWeb.Core.Services
             await foreach (var update in workflowAgent.RunStreamingAsync("Generate today's workout plan.", session))
             {
                 if (update.Text != null && update.AuthorName == "Strength_Coach")
-                {
-                    finalWorkout += update.Text;
+                    {
+                        finalWorkout += update.Text;
+                    }
                 }
-            }
             return finalWorkout;
         }
     }

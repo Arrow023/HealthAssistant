@@ -5,8 +5,15 @@ namespace FitnessAgentsWeb.Core.Configuration
         string GetAiModel();
         string GetAiKey();
         string GetAiEndpoint();
+        string GetOcrModel();
+        string GetOcrKey();
+        string GetOcrEndpoint();
         string GetSmtpPassword();
+        string GetSmtpHost();
+        string GetSmtpPort();
         string GetFromEmail();
         string GetToEmail();
+        string GetAdminEmail();
+        string GetAdminPassword();
     }
 }

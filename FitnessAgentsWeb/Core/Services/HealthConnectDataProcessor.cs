@@ -145,15 +145,21 @@ namespace FitnessAgentsWeb.Core.Services
             }
 
             // Load User Profile (FirstName & Preferences)
-            var profiles = await _storageRepository.GetAllUserProfilesAsync();
-            if (profiles.TryGetValue(userId, out var profile))
+            Console.WriteLine($"[HealthProcessor] Loading profile for: {userId} (normalized if needed by repo)");
+            var profile = await _storageRepository.GetUserProfileAsync(userId);
+            if (profile != null)
             {
+                Console.WriteLine($"[HealthProcessor] Profile FOUND. FirstName: {profile.FirstName}, Email: {profile.Email}, Prefs: {profile.Preferences}");
                 context.FirstName = string.IsNullOrEmpty(profile.FirstName) ? userId : profile.FirstName;
                 context.Email = profile.Email;
                 if (!string.IsNullOrEmpty(profile.Preferences))
                 {
                     context.ConditionsBrief = profile.Preferences;
                 }
+            }
+            else
+            {
+                Console.WriteLine($"[HealthProcessor] Profile NOT FOUND for {userId}");
             }
 
             // Load User-Specific InBody & Conditions from Firebase

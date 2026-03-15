@@ -15,6 +15,7 @@ namespace FitnessAgentsWeb.Core.Interfaces
         Task SaveLatestInBodyDataAsync(string userId, string jsonPayload);
 
         Task<System.Collections.Generic.Dictionary<string, UserProfile>> GetAllUserProfilesAsync();
+        Task<UserProfile?> GetUserProfileAsync(string userId);
         Task SaveUserProfileAsync(string userId, UserProfile profile);
 
         Task<DietPlan?> GetLatestDietAsync(string userId);
