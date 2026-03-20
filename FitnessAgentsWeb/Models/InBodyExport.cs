@@ -19,6 +19,7 @@ public record CoreComposition
     [JsonPropertyName("weight_kg")] public double WeightKg { get; init; }
     [JsonPropertyName("skeletal_muscle_mass_kg")] public double SmmKg { get; init; }
     [JsonPropertyName("percent_body_fat")] public double Pbf { get; init; }
+    [JsonPropertyName("bmi")] public double Bmi { get; init; }
 }
 
 public record SegmentalLean
@@ -33,10 +34,11 @@ public record SegmentalLean
 public record InBodyTargets
 {
     [JsonPropertyName("fat_control_kg")] public double FatControl { get; init; }
-    [JsonPropertyName("muscle_control_kg")] public double MuscleControl { get; init; }
+    [JsonPropertyName("muscle_control_kg")] public double MuscleControl { get; init; } 
 }
 
 public record MetabolicHealth
 {
     [JsonPropertyName("basal_metabolic_rate_kcal")] public int Bmr { get; init; }
+    [JsonPropertyName("visceral_fat_level")] public int VisceralFatLevel { get; init; }
 }

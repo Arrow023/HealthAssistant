@@ -1,4 +1,3 @@
 <Solution>
   <Project Path="FitnessAgentsWeb/FitnessAgentsWeb.csproj" />
-  <Project Path="Terminal/Terminal.csproj" />
 </Solution>
