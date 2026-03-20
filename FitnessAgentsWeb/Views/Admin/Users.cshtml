@@ -1,0 +1,87 @@
+@model System.Collections.Generic.Dictionary<string, FitnessAgentsWeb.Models.UserProfile>
+@{
+    ViewData["Title"] = "User Management";
+}
+
+<div class="page-header fade-up">
+    <h1 class="page-title">User Management</h1>
+    <p class="page-subtitle">Provision new accounts and manage existing users.</p>
+</div>
+
+<div class="grid-2 fade-up" style="align-items: start;">
+    <!-- Add New User -->
+    <div class="card">
+        <h3 style="margin: 0 0 1rem; font-weight: 700;"><i class="fa-solid fa-user-plus" style="color: var(--primary); margin-right: 0.5rem;"></i>Add New User</h3>
+        <form method="post" asp-controller="Admin" asp-action="AddUser">
+            <div class="form-group">
+                <label class="form-label">User ID (no spaces)</label>
+                <input type="text" name="userId" placeholder="e.g. wife_iphone" class="form-control" required />
+            </div>
+            <div class="grid-2" style="gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">First Name</label>
+                    <input type="text" name="firstName" placeholder="Jane" class="form-control" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Last Name</label>
+                    <input type="text" name="lastName" placeholder="Doe" class="form-control" required />
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" name="password" placeholder="••••••••" class="form-control" required autocomplete="new-password" />
+            </div>
+            <button class="btn btn-block" type="submit"><i class="fa-solid fa-plus"></i> Provision User</button>
+        </form>
+    </div>
+
+    <!-- Existing Users -->
+    <div class="card">
+        <h3 style="margin: 0 0 1rem; font-weight: 700;"><i class="fa-solid fa-users" style="color: var(--accent-green); margin-right: 0.5rem;"></i>Provisioned Users</h3>
+
+        @if (Model != null && Model.Count > 0)
+        {
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                @foreach (var kp in Model)
+                {
+                    <div class="card" style="margin: 0; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <div>
+                                <strong style="font-size: 1rem;">@kp.Value.FirstName @kp.Value.LastName</strong>
+                                <span class="badge" style="margin-left: 0.5rem;">@kp.Key</span>
+                            </div>
+                            <form method="post" asp-controller="Admin" asp-action="ToggleUser" style="margin: 0;">
+                                <input type="hidden" name="userId" value="@kp.Key" />
+                                @if (kp.Value.IsActive)
+                                {
+                                    <button type="submit" class="badge" style="background: var(--accent-green); color: #fff; cursor: pointer; border: none;">Active</button>
+                                }
+                                else
+                                {
+                                    <button type="submit" class="badge" style="background: var(--accent-red); color: #fff; cursor: pointer; border: none;">Disabled</button>
+                                }
+                            </form>
+                        </div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                            <i class="fa-solid fa-envelope" style="width: 16px;"></i> @kp.Value.Email &nbsp;
+                            <i class="fa-solid fa-clock" style="width: 16px;"></i> @kp.Value.NotificationTime
+                        </div>
+                        <div style="font-size: 0.8rem;">
+                            <span style="font-weight: 700; color: var(--primary); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em;">Webhook</span>
+                            <div style="font-family: monospace; background: var(--bg); padding: 0.4rem 0.6rem; border-radius: var(--radius); font-size: 0.8rem; word-break: break-all; margin-top: 0.25rem; border: 1px solid var(--border);">
+                                @ViewBag.BaseUrl/api/webhooks/@kp.Key/generate-workout
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-user-slash"></i>
+                <p>No users provisioned yet.</p>
+            </div>
+        }
+    </div>
+</div>
