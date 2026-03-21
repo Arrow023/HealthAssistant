@@ -320,6 +320,14 @@ namespace FitnessAgentsWeb.Core.Services
                 {
                     context.FoodPreferences = profile.FoodPreferences;
                 }
+                if (profile.ExcludedFoods?.Count > 0)
+                    context.ExcludedFoods = profile.ExcludedFoods;
+                if (!string.IsNullOrEmpty(profile.CuisineStyle))
+                    context.CuisineStyle = profile.CuisineStyle;
+                if (profile.CookingOils?.Count > 0)
+                    context.CookingOils = profile.CookingOils;
+                if (profile.StapleGrains?.Count > 0)
+                    context.StapleGrains = profile.StapleGrains;
                 if (profile.WorkoutSchedule != null && profile.WorkoutSchedule.Any())
                 {
                     context.WorkoutSchedule = profile.WorkoutSchedule;
@@ -328,6 +336,21 @@ namespace FitnessAgentsWeb.Core.Services
             else
             {
                 _logger.LogWarning($"[HealthProcessor] Profile NOT FOUND for {userId}");
+            }
+
+            // Load recent diary entries to build a diary brief for AI context
+            try
+            {
+                var diaryEntries = await _storageRepository.GetRecentDiaryEntriesAsync(userId, 7);
+                if (diaryEntries.Count > 0)
+                {
+                    context.DiaryBrief = BuildDiaryBrief(diaryEntries);
+                    _logger.LogInformation("[HealthProcessor] Built diary brief from {Count} entries", diaryEntries.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[HealthProcessor] Failed loading diary entries");
             }
 
             // Estimate VO2max from RHR if not available from Health Connect
@@ -566,6 +589,39 @@ namespace FitnessAgentsWeb.Core.Services
             }).Where(v => v > 0).ToList();
             if (sleepValues.Any())
                 ctx.AvgSleep15Day = Math.Round(sleepValues.Average(), 1).ToString("0.0") + "h";
+        }
+
+        private static string BuildDiaryBrief(List<DailyDiary> entries)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var entry in entries.Take(5))
+            {
+                sb.Append($"[{entry.Date}] ");
+                if (entry.ActualMeals.Count > 0)
+                {
+                    var foods = entry.ActualMeals.Select(m => $"{m.MealTime}: {m.FoodName}");
+                    sb.Append($"Ate: {string.Join(", ", foods)}. ");
+                }
+                if (entry.WorkoutLog.Count > 0)
+                {
+                    int done = entry.WorkoutLog.Count(w => w.Completed);
+                    int skipped = entry.WorkoutLog.Count(w => w.Feeling == "skipped");
+                    sb.Append($"Workout: {done} done, {skipped} skipped. ");
+                }
+                if (entry.PainLog.Count > 0)
+                {
+                    var pains = entry.PainLog.Select(p => $"{p.BodyArea} ({p.Severity}/5)");
+                    sb.Append($"Pain: {string.Join(", ", pains)}. ");
+                }
+                if (entry.MoodEnergy > 0)
+                    sb.Append($"Mood: {entry.MoodEnergy}/5. ");
+                if (entry.WaterIntakeLitres > 0)
+                    sb.Append($"Water: {entry.WaterIntakeLitres:0.0}L. ");
+                if (!string.IsNullOrEmpty(entry.GeneralNotes))
+                    sb.Append($"Notes: {entry.GeneralNotes} ");
+                sb.AppendLine();
+            }
+            return sb.ToString().Trim();
         }
     }
 }

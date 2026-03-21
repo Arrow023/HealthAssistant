@@ -1,0 +1,777 @@
+@model FitnessAgentsWeb.Models.DailyDiary
+@{
+    ViewData["Title"] = "Daily Diary";
+    var todayDate = ViewBag.TodayDate as string ?? DateTime.Now.ToString("yyyy-MM-dd");
+    var actualToday = ViewBag.ActualToday as string ?? todayDate;
+    var todayFormatted = ViewBag.TodayFormatted as string ?? todayDate;
+    var userId = ViewBag.UserId as string ?? "";
+    var todayDiet = ViewBag.TodayDiet as FitnessAgentsWeb.Models.DietPlan;
+    var recentEntries = ViewBag.RecentEntries as List<FitnessAgentsWeb.Models.DailyDiary> ?? new List<FitnessAgentsWeb.Models.DailyDiary>();
+    var isToday = (bool)(ViewBag.IsToday ?? true);
+    var workoutHtml = ViewBag.WorkoutHtml as string;
+    var workoutExercises = ViewBag.WorkoutExercises as List<string> ?? new List<string>();
+    var dayName = ViewBag.DayName as string ?? "";
+
+    // Build lookup of saved meals by MealTime for matching with recommended plan
+    var savedMealsByType = Model.ActualMeals?
+        .GroupBy(m => m.MealTime)
+        .ToDictionary(g => g.Key, g => g.First())
+        ?? new Dictionary<string, FitnessAgentsWeb.Models.DiaryMeal>();
+
+    // Build lookup of saved workouts by Exercise name
+    var savedWorkoutsByName = Model.WorkoutLog?
+        .ToDictionary(w => w.Exercise, w => w)
+        ?? new Dictionary<string, FitnessAgentsWeb.Models.DiaryWorkoutLog>();
+}
+
+<div class="page-header fade-up">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+        <div>
+            <h1 class="page-title"><i class="fa-solid fa-book-open" style="color: var(--primary); margin-right: 0.5rem;"></i>Daily Diary</h1>
+            <p class="page-subtitle" style="margin: 0;">Log your actual meals, workouts, pain, and mood.</p>
+        </div>
+
+        <!-- Date Navigator -->
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+            @{
+                var prevDate = DateTime.TryParse(todayDate, out var pd) ? pd.AddDays(-1).ToString("yyyy-MM-dd") : todayDate;
+                var nextDate = DateTime.TryParse(todayDate, out var nd) ? nd.AddDays(1).ToString("yyyy-MM-dd") : todayDate;
+                var nextDisabled = nextDate == actualToday || string.Compare(nextDate, actualToday) > 0;
+            }
+            <a href="@Url.Action("Index", "Diary", new { userId, date = prevDate })"
+               class="btn btn-outline btn-sm" title="Previous day"
+               style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding: 0;">
+                <i class="fa-solid fa-chevron-left"></i>
+            </a>
+            <div style="position: relative;">
+                <button type="button" id="datePickerToggle"
+                        style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.85rem; border: 1.5px solid var(--border); border-radius: 0.5rem; background: var(--card-bg); color: var(--text-primary); font-weight: 700; font-size: 0.9rem; cursor: pointer; min-width: 170px; justify-content: center; transition: border-color 0.2s;">
+                    <i class="fa-solid fa-calendar-day" style="color: var(--primary); font-size: 0.8rem;"></i>
+                    <span>@todayFormatted</span>
+                    @if (isToday) { <span style="background: var(--primary); color: #fff; font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 999px; font-weight: 600;">TODAY</span> }
+                </button>
+                <input type="date" id="datePicker" value="@todayDate" max="@actualToday"
+                       style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" />
+            </div>
+            @if (!nextDisabled)
+            {
+                <a href="@Url.Action("Index", "Diary", new { userId, date = nextDate })"
+                   class="btn btn-outline btn-sm" title="Next day"
+                   style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding: 0;">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </a>
+            }
+            else
+            {
+                <span class="btn btn-outline btn-sm" title="Can't go to future"
+                      style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding: 0; opacity: 0.3; pointer-events: none;">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </span>
+            }
+            @if (!isToday)
+            {
+                <a href="@Url.Action("Index", "Diary", new { userId })" class="btn btn-sm" title="Jump to today"
+                   style="margin-left: 0.25rem; font-size: 0.78rem; padding: 0.35rem 0.65rem;">
+                    <i class="fa-solid fa-forward-fast"></i> Today
+                </a>
+            }
+        </div>
+    </div>
+</div>
+
+@if (!isToday)
+{
+    <div class="card fade-up" style="background: color-mix(in srgb, var(--accent-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-orange) 30%, transparent); margin-bottom: 1.25rem; padding: 0.65rem 1rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i class="fa-solid fa-clock-rotate-left" style="color: var(--accent-orange);"></i>
+        <span style="font-size: 0.88rem;">You're editing a <strong>past diary entry</strong> for @todayFormatted. Changes are saved to that date.</span>
+    </div>
+}
+
+@if (TempData["DiarySuccess"] != null)
+{
+    <div class="card fade-up" style="background: var(--accent-green-bg); border: 1px solid var(--accent-green); margin-bottom: 1.25rem; padding: 0.75rem 1rem;">
+        <i class="fa-solid fa-check-circle" style="color: var(--accent-green); margin-right: 0.5rem;"></i>@TempData["DiarySuccess"]
+    </div>
+}
+
+<div class="fade-up" style="display: grid; grid-template-columns: 1fr 280px; gap: 1.25rem; align-items: start;">
+    <!-- Left: Diary Form -->
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+        <form method="post" asp-controller="Diary" asp-action="Save" id="diaryForm">
+            <input type="hidden" name="userId" value="@userId" />
+            <input type="hidden" name="date" value="@todayDate" />
+
+            <!-- Diet Section: Recommended vs Actual -->
+            <div class="card" style="margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <h3 style="margin: 0; font-weight: 700;"><i class="fa-solid fa-utensils" style="color: var(--accent-orange); margin-right: 0.5rem;"></i>Diet</h3>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        @if (todayDiet?.Meals != null && todayDiet.Meals.Count > 0)
+                        {
+                            <button type="button" class="btn btn-sm" id="followPlanBtn" onclick="followEntirePlan()" style="font-size: 0.78rem; padding: 0.35rem 0.75rem; background: var(--accent-green); border-color: var(--accent-green);">
+                                <i class="fa-solid fa-check-double"></i> Followed Plan
+                            </button>
+                        }
+                        <button type="button" class="btn btn-outline btn-sm" onclick="addExtraMealRow()" style="font-size: 0.78rem;"><i class="fa-solid fa-plus"></i> Extra Meal</button>
+                    </div>
+                </div>
+
+                @if (todayDiet?.Meals != null && todayDiet.Meals.Count > 0)
+                {
+                    <div style="background: var(--primary-subtle); border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent); border-radius: 0.75rem; padding: 0.65rem 0.85rem; margin-bottom: 1rem;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="font-weight: 700; font-size: 0.82rem; color: var(--primary);">
+                                <i class="fa-solid fa-lightbulb" style="margin-right: 0.3rem;"></i>Today's Recommended Plan
+                            </span>
+                            <span style="font-size: 0.72rem; color: var(--text-secondary); background: var(--card-bg); padding: 0.12rem 0.5rem; border-radius: 999px; font-weight: 600;">@todayDiet.TotalCaloriesTarget kcal target</span>
+                        </div>
+
+                        <!-- Column headers -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.35rem; padding: 0 0.25rem;">
+                            <span style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); opacity: 0.7;">Recommended</span>
+                            <span style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); opacity: 0.7;">What I Ate</span>
+                        </div>
+
+                        @{
+                            string[] mealIcons = { "fa-mug-hot", "fa-sun", "fa-cloud-sun", "fa-moon", "fa-cookie-bite", "fa-droplet" };
+                            string[] mealColors = { "var(--accent-orange)", "var(--accent-green)", "#eab308", "var(--primary)", "var(--accent-red)", "#06b6d4" };
+                            int mealIdx = 0;
+                        }
+
+                        @foreach (var m in todayDiet.Meals)
+                        {
+                            var icon = mealIdx < mealIcons.Length ? mealIcons[mealIdx] : "fa-utensils";
+                            var clr = mealIdx < mealColors.Length ? mealColors[mealIdx] : "var(--primary)";
+                            mealIdx++;
+
+                            var hasSaved = savedMealsByType.TryGetValue(m.MealType, out var saved);
+                            var ateThis = hasSaved && saved!.WasFromPlan;
+                            var ateDiff = hasSaved && !saved!.WasFromPlan && !string.IsNullOrEmpty(saved.FoodName);
+
+                            <div class="plan-meal-item @(ateThis ? "state-ate" : ateDiff ? "state-diff" : "")"
+                                 data-meal-type="@m.MealType" data-food="@m.FoodName" data-qty="@m.QuantityDescription"
+                                 style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0.6rem 0.45rem; background: var(--card-bg); border-radius: 0.5rem; border: 1.5px solid var(--border); margin-bottom: 0.4rem; transition: border-color 0.2s;">
+
+                                <!-- Left: Recommended Info -->
+                                <div style="display: flex; align-items: flex-start; gap: 0.5rem;">
+                                    <div style="width: 26px; height: 26px; border-radius: 0.35rem; background: color-mix(in srgb, @clr 12%, transparent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 0.1rem;">
+                                        <i class="fa-solid @icon" style="font-size: 0.7rem; color: @clr;"></i>
+                                    </div>
+                                    <div style="min-width: 0;">
+                                        <div style="font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-primary);">@m.MealType</div>
+                                        <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.3; margin-top: 0.05rem;">@m.FoodName</div>
+                                        <div style="font-size: 0.7rem; color: var(--text-secondary); opacity: 0.65; margin-top: 0.1rem;">@m.QuantityDescription · <strong style="color: @clr;">@m.Calories kcal</strong></div>
+                                    </div>
+                                </div>
+
+                                <!-- Right: What I Ate -->
+                                <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                                    <div class="meal-toggle-group" style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
+                                        <button type="button" class="meal-toggle-btn ate-this @(ateThis ? "active" : "")" onclick="setMealState(this, 'ate')" title="Ate exactly this">
+                                            <i class="fa-solid fa-check"></i> Ate this
+                                        </button>
+                                        <button type="button" class="meal-toggle-btn ate-diff @(ateDiff ? "active" : "")" onclick="setMealState(this, 'diff')" title="Ate something different">
+                                            <i class="fa-solid fa-pen-to-square"></i> Different
+                                        </button>
+                                        <button type="button" class="meal-toggle-btn ate-skip" onclick="setMealState(this, 'skip')" title="Skipped this meal">
+                                            <i class="fa-solid fa-forward"></i>
+                                        </button>
+                                    </div>
+                                    <div class="custom-meal-input" style="display: @(ateDiff ? "flex" : "none"); gap: 0.35rem;">
+                                        <input type="text" class="form-control custom-food" value="@(ateDiff ? saved?.FoodName : "")" placeholder="What did you eat?" style="font-size: 0.8rem; flex: 1;" />
+                                        <input type="text" class="form-control custom-qty" value="@(ateDiff ? saved?.Quantity : "")" placeholder="Qty" style="font-size: 0.8rem; width: 80px;" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="field-hint" style="margin-bottom: 1rem;">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>No recommended diet plan available. Log your meals manually below. Qty examples: <code>2 rotis</code> <code>1 bowl</code> <code>200ml</code></span>
+                    </div>
+                }
+
+                <!-- Extra meals (not in plan, or all meals if no plan) -->
+                <div id="extraMealsContainer">
+                    @{
+                        // Show only non-plan meals, or ALL meals if no plan exists
+                        var extraMeals = todayDiet?.Meals?.Count > 0
+                            ? (Model.ActualMeals?.Where(m => !savedMealsByType.Values.Contains(m) || !m.WasFromPlan && !todayDiet.Meals.Any(p => p.MealType == m.MealTime)).ToList() ?? new List<FitnessAgentsWeb.Models.DiaryMeal>())
+                            : (Model.ActualMeals ?? new List<FitnessAgentsWeb.Models.DiaryMeal>());
+                    }
+                    @if (todayDiet?.Meals == null || todayDiet.Meals.Count == 0)
+                    {
+                        @if (Model.ActualMeals?.Count > 0)
+                        {
+                            @for (int i = 0; i < Model.ActualMeals.Count; i++)
+                            {
+                                var meal = Model.ActualMeals[i];
+                                <div class="diary-meal-row" style="display: grid; grid-template-columns: 110px 1fr 90px auto; gap: 0.4rem; margin-bottom: 0.4rem; align-items: center;">
+                                    <select class="form-control meal-time" style="font-size: 0.82rem;">
+                                        @foreach (var mt in new[] { "Morning", "Lunch", "Evening", "Dinner", "Snack" })
+                                        {
+                                            <option value="@mt" selected="@(meal.MealTime == mt)">@mt</option>
+                                        }
+                                    </select>
+                                    <input type="text" class="form-control meal-food" value="@meal.FoodName" placeholder="What did you eat?" style="font-size: 0.82rem;" />
+                                    <input type="text" class="form-control meal-qty" value="@meal.Quantity" placeholder="Qty" style="font-size: 0.82rem;" />
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.diary-meal-row').remove()" title="Remove" style="padding: 0.25rem 0.45rem;"><i class="fa-solid fa-xmark" style="color: var(--accent-red);"></i></button>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            @foreach (var mt in new[] { "Morning", "Lunch", "Evening", "Dinner" })
+                            {
+                                <div class="diary-meal-row" style="display: grid; grid-template-columns: 110px 1fr 90px auto; gap: 0.4rem; margin-bottom: 0.4rem; align-items: center;">
+                                    <select class="form-control meal-time" style="font-size: 0.82rem;">
+                                        @foreach (var opt in new[] { "Morning", "Lunch", "Evening", "Dinner", "Snack" })
+                                        {
+                                            <option value="@opt" selected="@(opt == mt)">@opt</option>
+                                        }
+                                    </select>
+                                    <input type="text" class="form-control meal-food" placeholder="What did you eat?" style="font-size: 0.82rem;" />
+                                    <input type="text" class="form-control meal-qty" placeholder="Qty" style="font-size: 0.82rem;" />
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.diary-meal-row').remove()" title="Remove" style="padding: 0.25rem 0.45rem;"><i class="fa-solid fa-xmark" style="color: var(--accent-red);"></i></button>
+                                </div>
+                            }
+                        }
+                    }
+                </div>
+
+                <!-- Hidden fields populated on submit -->
+                <input type="hidden" name="mealTimes" id="mealTimesHidden" />
+                <input type="hidden" name="mealFoods" id="mealFoodsHidden" />
+                <input type="hidden" name="mealQuantities" id="mealQuantitiesHidden" />
+                <input type="hidden" name="mealFromPlan" id="mealFromPlanHidden" />
+                <input type="hidden" name="mealSubstitutions" id="mealSubstitutionsHidden" />
+            </div>
+
+            <!-- Workout Section: Plan-Aware Logging -->
+            <div class="card" style="margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <h3 style="margin: 0; font-weight: 700;">
+                        <i class="fa-solid fa-dumbbell" style="color: var(--primary); margin-right: 0.5rem;"></i>Workout
+                        @if (!string.IsNullOrEmpty(dayName)) { <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-secondary); margin-left: 0.25rem;">— @dayName</span> }
+                    </h3>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        @if (workoutExercises.Count > 0)
+                        {
+                            <button type="button" class="btn btn-sm" id="allCompleteBtn" onclick="markAllComplete()" style="font-size: 0.78rem; padding: 0.35rem 0.75rem; background: var(--accent-green); border-color: var(--accent-green);">
+                                <i class="fa-solid fa-check-double"></i> All Complete
+                            </button>
+                        }
+                        <button type="button" class="btn btn-outline btn-sm" onclick="addWorkoutRow()" style="font-size: 0.78rem;"><i class="fa-solid fa-plus"></i> Add Exercise</button>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(workoutHtml))
+                {
+                    <!-- Collapsible Plan Preview -->
+                    <details class="workout-preview-details" style="margin-bottom: 1rem;">
+                        <summary style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; background: var(--primary-subtle); border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent); border-radius: 0.5rem; font-size: 0.82rem; font-weight: 600; color: var(--primary); user-select: none;">
+                            <i class="fa-solid fa-clipboard-list"></i> View Full Workout Plan
+                            <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-secondary); margin-left: auto;">click to expand</span>
+                        </summary>
+                        <div style="padding: 0.75rem; border: 1px solid var(--border); border-top: none; border-radius: 0 0 0.5rem 0.5rem; background: var(--card-bg); max-height: 400px; overflow-y: auto; font-size: 0.85rem;">
+                            @Html.Raw(workoutHtml)
+                        </div>
+                    </details>
+
+                    @if (workoutExercises.Count > 0)
+                    {
+                        <!-- Column headers -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.35rem; padding: 0 0.25rem;">
+                            <span style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); opacity: 0.7;">From Plan</span>
+                            <span style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); opacity: 0.7;">How It Went</span>
+                        </div>
+
+                        <div id="planWorkoutsContainer">
+                            @foreach (var exercise in workoutExercises)
+                            {
+                                var hasSaved = savedWorkoutsByName.TryGetValue(exercise, out var savedWo);
+                                var isDone = hasSaved && savedWo!.Completed;
+                                var feeling = hasSaved ? savedWo!.Feeling : "moderate";
+
+                                <div class="plan-workout-row @(isDone ? "state-done" : "")" data-exercise="@exercise"
+                                     style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0.55rem 0.5rem; background: var(--card-bg); border-radius: 0.5rem; border: 1.5px solid var(--border); margin-bottom: 0.35rem; transition: border-color 0.2s, background 0.2s;">
+
+                                    <!-- Left: Exercise from plan -->
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <div style="width: 26px; height: 26px; border-radius: 0.35rem; background: color-mix(in srgb, var(--primary) 12%, transparent); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                            <i class="fa-solid fa-dumbbell" style="font-size: 0.65rem; color: var(--primary);"></i>
+                                        </div>
+                                        <span class="plan-exercise-name" style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); line-height: 1.3;">@exercise</span>
+                                    </div>
+
+                                    <!-- Right: Status controls -->
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                        <label class="wo-done-toggle" style="display: flex; align-items: center; gap: 0.3rem; cursor: pointer; font-size: 0.8rem; font-weight: 600; white-space: nowrap;">
+                                            <input type="checkbox" class="wo-plan-completed" @(isDone ? "checked" : "") onchange="toggleWorkoutDone(this)" />
+                                            <span class="wo-done-label">Done</span>
+                                        </label>
+                                        <select class="form-control wo-plan-feeling" style="font-size: 0.78rem; padding: 0.2rem 0.4rem; width: auto; min-width: 95px;">
+                                            @foreach (var f in new[] { "easy", "moderate", "hard", "skipped" })
+                                            {
+                                                <option value="@f" selected="@(feeling == f)">@(f[0].ToString().ToUpper() + f[1..])@(f == "skipped" ? " ❌" : "")</option>
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="field-hint" style="margin-bottom: 1rem;">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>No workout plan found for @dayName. Log exercises manually below. Don't worry about sets/reps — just the exercise name.</span>
+                    </div>
+                }
+
+                <!-- Extra exercises (custom / manual) -->
+                <div id="workoutsContainer" style="margin-top: @(workoutExercises.Count > 0 ? "0.75rem" : "0");">
+                    @if (workoutExercises.Count > 0)
+                    {
+                        <!-- Show saved workouts that don't match plan exercises -->
+                        @if (Model.WorkoutLog != null)
+                        {
+                            @foreach (var w in Model.WorkoutLog.Where(w => !workoutExercises.Contains(w.Exercise)))
+                            {
+                                <div class="diary-workout-row" style="display: grid; grid-template-columns: 1fr 100px 100px auto; gap: 0.4rem; margin-bottom: 0.35rem; align-items: center;">
+                                    <input type="text" class="form-control wo-exercise" value="@w.Exercise" placeholder="Exercise name" style="font-size: 0.82rem;" />
+                                    <select class="form-control wo-feeling" style="font-size: 0.82rem;">
+                                        @foreach (var f in new[] { "easy", "moderate", "hard", "skipped" })
+                                        {
+                                            <option value="@f" selected="@(w.Feeling == f)">@(f[0].ToString().ToUpper() + f[1..])@(f == "skipped" ? " ❌" : "")</option>
+                                        }
+                                    </select>
+                                    <label style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; cursor: pointer;">
+                                        <input type="checkbox" class="wo-completed" @(w.Completed ? "checked" : "") /> Done
+                                    </label>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.diary-workout-row').remove()" title="Remove" style="padding: 0.25rem 0.45rem;"><i class="fa-solid fa-xmark" style="color: var(--accent-red);"></i></button>
+                                </div>
+                            }
+                        }
+                    }
+                    else
+                    {
+                        @if (Model.WorkoutLog?.Count > 0)
+                        {
+                            @for (int i = 0; i < Model.WorkoutLog.Count; i++)
+                            {
+                                var w = Model.WorkoutLog[i];
+                                <div class="diary-workout-row" style="display: grid; grid-template-columns: 1fr 100px 100px auto; gap: 0.4rem; margin-bottom: 0.35rem; align-items: center;">
+                                    <input type="text" class="form-control wo-exercise" value="@w.Exercise" placeholder="Exercise name" style="font-size: 0.82rem;" />
+                                    <select class="form-control wo-feeling" style="font-size: 0.82rem;">
+                                        @foreach (var f in new[] { "easy", "moderate", "hard", "skipped" })
+                                        {
+                                            <option value="@f" selected="@(w.Feeling == f)">@(f[0].ToString().ToUpper() + f[1..])@(f == "skipped" ? " ❌" : "")</option>
+                                        }
+                                    </select>
+                                    <label style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; cursor: pointer;">
+                                        <input type="checkbox" class="wo-completed" @(w.Completed ? "checked" : "") /> Done
+                                    </label>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.diary-workout-row').remove()" title="Remove" style="padding: 0.25rem 0.45rem;"><i class="fa-solid fa-xmark" style="color: var(--accent-red);"></i></button>
+                                </div>
+                            }
+                        }
+                    }
+                </div>
+
+                <input type="hidden" name="workoutExercises" id="workoutExercisesHidden" />
+                <input type="hidden" name="workoutCompleted" id="workoutCompletedHidden" />
+                <input type="hidden" name="workoutFeelings" id="workoutFeelingsHidden" />
+                <input type="hidden" name="workoutNotes" id="workoutNotesHidden" />
+            </div>
+
+            <!-- Pain Log -->
+            <div class="card" style="margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                    <h3 style="margin: 0; font-weight: 700;"><i class="fa-solid fa-heart-crack" style="color: var(--accent-red); margin-right: 0.5rem;"></i>Pain / Discomfort</h3>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="addPainRow()"><i class="fa-solid fa-plus"></i> Add</button>
+                </div>
+                <div class="field-hint field-hint--warn">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>Only log if something actually hurts. Body area examples: <code>Lower Back</code> <code>Right Knee</code> <code>Left Shoulder</code>. Severity: <strong>1</strong> = mild twinge, <strong>5</strong> = can't move. Leave empty if pain-free!</span>
+                </div>
+                <div id="painContainer">
+                    @if (Model.PainLog?.Count > 0)
+                    {
+                        @for (int i = 0; i < Model.PainLog.Count; i++)
+                        {
+                            var p = Model.PainLog[i];
+                            <div class="diary-pain-row" style="display: grid; grid-template-columns: 150px 80px 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;">
+                                <input type="text" class="form-control pain-area" value="@p.BodyArea" placeholder="Body area" style="font-size: 0.85rem;" />
+                                <select class="form-control pain-severity" style="font-size: 0.85rem;">
+                                    @for (int s = 1; s <= 5; s++)
+                                    {
+                                        <option value="@s" selected="@(p.Severity == s)">@s/5</option>
+                                    }
+                                </select>
+                                <input type="text" class="form-control pain-desc" value="@p.Description" placeholder="Description…" style="font-size: 0.85rem;" />
+                                <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.diary-pain-row').remove()" title="Remove"><i class="fa-solid fa-trash" style="color: var(--accent-red);"></i></button>
+                            </div>
+                        }
+                    }
+                </div>
+                <input type="hidden" name="painAreas" id="painAreasHidden" />
+                <input type="hidden" name="painSeverities" id="painSeveritiesHidden" />
+                <input type="hidden" name="painDescriptions" id="painDescriptionsHidden" />
+            </div>
+
+            <!-- Mood, Water, Notes -->
+            <div class="card" style="margin-bottom: 1.25rem;">
+                <h3 style="margin: 0 0 0.5rem; font-weight: 700;"><i class="fa-solid fa-face-smile" style="color: var(--accent-green); margin-right: 0.5rem;"></i>Mood & General</h3>
+                <div class="field-hint">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span>Rate your <strong>overall energy</strong> for today (1 = exhausted, 5 = unstoppable). Sleep notes: mention quality, not just hours — <code>woke up twice</code> <code>felt rested</code>. General notes: stress, digestion, motivation, anything else.</span>
+                </div>
+                <div class="grid-2" style="gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Mood / Energy Level</label>
+                        <div class="mood-selector" id="moodSelector">
+                            @for (int m = 1; m <= 5; m++)
+                            {
+                                string[] moodIcons = { "fa-face-frown", "fa-face-meh", "fa-face-smile", "fa-face-grin", "fa-face-grin-stars" };
+                                string[] moodColors = { "var(--accent-red)", "var(--accent-orange)", "#eab308", "var(--accent-green)", "var(--primary)" };
+                                <button type="button" class="mood-btn @(Model.MoodEnergy == m ? "active" : "")" data-value="@m"
+                                        style="--mood-color: @moodColors[m-1];" onclick="selectMood(@m)">
+                                    <i class="fa-solid @moodIcons[m-1]"></i>
+                                    <span>@m</span>
+                                </button>
+                            }
+                        </div>
+                        <input type="hidden" name="moodEnergy" id="moodEnergyHidden" value="@Model.MoodEnergy" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Water Intake (litres)</label>
+                        <input type="number" name="waterIntake" value="@Model.WaterIntakeLitres.ToString("0.0")" step="0.1" min="0" max="10" class="form-control" style="max-width: 150px;" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sleep Notes</label>
+                    <input type="text" name="sleepNotes" value="@Model.SleepNotes" class="form-control" placeholder="e.g. Woke up twice, felt groggy…" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">General Notes</label>
+                    <textarea name="generalNotes" rows="2" class="form-control" placeholder="Anything else about today…">@Model.GeneralNotes</textarea>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn" onclick="collectFormData()">
+                    <i class="fa-solid fa-save"></i> Save Diary
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Right: History Sidebar -->
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+        <div class="card">
+            <h3 style="margin: 0 0 1rem; font-weight: 700;"><i class="fa-solid fa-clock-rotate-left" style="color: var(--primary); margin-right: 0.5rem;"></i>Recent Entries</h3>
+            @if (recentEntries.Count == 0)
+            {
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">No diary entries yet. Start logging today!</p>
+            }
+            else
+            {
+                @foreach (var entry in recentEntries)
+                {
+                    var isSelected = entry.Date == todayDate;
+                    var isActualToday = entry.Date == actualToday;
+                    string[] moodEmojis = { "", "😞", "😐", "🙂", "😄", "🤩" };
+                    var moodEmoji = entry.MoodEnergy >= 1 && entry.MoodEnergy <= 5 ? moodEmojis[entry.MoodEnergy] : "";
+                    <a href="@Url.Action("Index", "Diary", new { userId, date = entry.Date })"
+                       style="display: block; padding: 0.65rem 0.85rem; border-radius: 0.5rem; margin-bottom: 0.4rem; text-decoration: none; transition: background 0.15s;
+                              background: @(isSelected ? "var(--primary-subtle)" : "transparent"); border: 1px solid @(isSelected ? "var(--primary)" : "var(--border)");">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">
+                                @(DateTime.TryParse(entry.Date, out var d) ? d.ToString("ddd, MMM dd") : entry.Date)
+                                @if (isActualToday) { <span style="color: var(--primary); font-size: 0.75rem;"> (today)</span> }
+                            </span>
+                            <span style="font-size: 1rem;">@moodEmoji</span>
+                        </div>
+                        <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                            @entry.ActualMeals.Count meals · @entry.WorkoutLog.Count(w => w.Completed) exercises done
+                            @if (entry.PainLog.Count > 0) { <span style="color: var(--accent-red);"> · @entry.PainLog.Count pain</span> }
+                            · @entry.WaterIntakeLitres.ToString("0.0")L water
+                        </div>
+                    </a>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<style>
+    /* Mood selector */
+    .mood-selector { display: flex; gap: 0.5rem; }
+    .mood-btn {
+        display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+        padding: 0.5rem 0.75rem; border: 2px solid var(--border); border-radius: 0.75rem;
+        background: transparent; color: var(--text-secondary); cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); font-size: 1.2rem;
+    }
+    .mood-btn span { font-size: 0.7rem; font-weight: 600; }
+    .mood-btn:hover { border-color: var(--mood-color); color: var(--mood-color); transform: scale(1.08); }
+    .mood-btn.active {
+        border-color: var(--mood-color); color: var(--mood-color);
+        background: color-mix(in srgb, var(--mood-color) 10%, transparent); transform: scale(1.1);
+    }
+
+    /* Meal toggle buttons */
+    .meal-toggle-btn {
+        display: inline-flex; align-items: center; gap: 0.25rem;
+        padding: 0.22rem 0.55rem; border: 1.5px solid var(--border); border-radius: 0.4rem;
+        background: transparent; color: var(--text-secondary); cursor: pointer;
+        font-size: 0.72rem; font-weight: 600; transition: all 0.15s ease;
+        white-space: nowrap;
+    }
+    .meal-toggle-btn:hover { border-color: var(--text-secondary); }
+    .meal-toggle-btn.ate-this.active {
+        background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+        border-color: var(--accent-green); color: var(--accent-green);
+    }
+    .meal-toggle-btn.ate-diff.active {
+        background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+        border-color: var(--accent-orange); color: var(--accent-orange);
+    }
+    .meal-toggle-btn.ate-skip.active {
+        background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+        border-color: var(--accent-red); color: var(--accent-red);
+    }
+
+    /* Plan meal item states */
+    .plan-meal-item.state-ate { border-color: color-mix(in srgb, var(--accent-green) 40%, transparent); }
+    .plan-meal-item.state-diff { border-color: color-mix(in srgb, var(--accent-orange) 40%, transparent); }
+    .plan-meal-item.state-skip { border-color: color-mix(in srgb, var(--accent-red) 25%, transparent); opacity: 0.6; }
+
+    /* Plan workout row states */
+    .plan-workout-row.state-done { border-color: color-mix(in srgb, var(--accent-green) 40%, transparent); background: color-mix(in srgb, var(--accent-green) 4%, var(--card-bg)); }
+    .plan-workout-row.state-skip { border-color: color-mix(in srgb, var(--accent-red) 25%, transparent); opacity: 0.6; }
+
+    /* Workout done toggle */
+    .wo-done-toggle input[type="checkbox"] { accent-color: var(--accent-green); width: 16px; height: 16px; }
+
+    /* Responsive: stack grid on smaller screens */
+    @@media (max-width: 800px) {
+        .plan-meal-item, .plan-workout-row { grid-template-columns: 1fr !important; }
+        .fade-up > div:first-child + div { display: none; } /* hide sidebar on mobile by default */
+    }
+
+    /* Details/summary styling */
+    .workout-preview-details summary::-webkit-details-marker { display: none; }
+    .workout-preview-details summary::marker { content: ""; }
+    .workout-preview-details[open] summary { border-radius: 0.5rem 0.5rem 0 0; }
+</style>
+<script>
+    // === MOOD ===
+    function selectMood(val) {
+        document.getElementById('moodEnergyHidden').value = val;
+        document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.value) === val));
+    }
+
+    // === DIET: Meal state toggles ===
+    function setMealState(btn, state) {
+        const item = btn.closest('.plan-meal-item');
+        const group = item.querySelector('.meal-toggle-group');
+        const customInput = item.querySelector('.custom-meal-input');
+
+        // Clear all active states
+        group.querySelectorAll('.meal-toggle-btn').forEach(b => b.classList.remove('active'));
+        item.classList.remove('state-ate', 'state-diff', 'state-skip');
+
+        if (state === 'ate') {
+            btn.classList.add('active');
+            item.classList.add('state-ate');
+            customInput.style.display = 'none';
+        } else if (state === 'diff') {
+            btn.classList.add('active');
+            item.classList.add('state-diff');
+            customInput.style.display = 'flex';
+            customInput.querySelector('.custom-food')?.focus();
+        } else if (state === 'skip') {
+            btn.classList.add('active');
+            item.classList.add('state-skip');
+            customInput.style.display = 'none';
+        }
+    }
+
+    function followEntirePlan() {
+        document.querySelectorAll('.plan-meal-item').forEach(item => {
+            const ateBtn = item.querySelector('.ate-this');
+            if (ateBtn && !ateBtn.classList.contains('active')) {
+                setMealState(ateBtn, 'ate');
+            }
+        });
+    }
+
+    function addExtraMealRow() {
+        const html = `<div class="diary-meal-row" style="display: grid; grid-template-columns: 110px 1fr 90px auto; gap: 0.4rem; margin-bottom: 0.4rem; align-items: center;">
+            <select class="form-control meal-time" style="font-size: 0.82rem;">
+                <option>Morning</option><option>Lunch</option><option>Evening</option><option>Dinner</option><option>Snack</option>
+            </select>
+            <input type="text" class="form-control meal-food" placeholder="What did you eat?" style="font-size: 0.82rem;" />
+            <input type="text" class="form-control meal-qty" placeholder="Qty" style="font-size: 0.82rem;" />
+            <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.diary-meal-row').remove()" title="Remove" style="padding: 0.25rem 0.45rem;"><i class="fa-solid fa-xmark" style="color: var(--accent-red);"></i></button>
+        </div>`;
+        document.getElementById('extraMealsContainer').insertAdjacentHTML('beforeend', html);
+    }
+
+    // === WORKOUT: Toggle states ===
+    function toggleWorkoutDone(checkbox) {
+        const row = checkbox.closest('.plan-workout-row');
+        const feeling = row.querySelector('.wo-plan-feeling');
+        if (checkbox.checked) {
+            row.classList.add('state-done');
+            row.classList.remove('state-skip');
+            if (feeling.value === 'skipped') feeling.value = 'moderate';
+        } else {
+            row.classList.remove('state-done');
+        }
+    }
+
+    function markAllComplete() {
+        document.querySelectorAll('.plan-workout-row').forEach(row => {
+            const cb = row.querySelector('.wo-plan-completed');
+            if (cb && !cb.checked) {
+                cb.checked = true;
+                toggleWorkoutDone(cb);
+            }
+        });
+    }
+
+    function addWorkoutRow() {
+        const html = `<div class="diary-workout-row" style="display: grid; grid-template-columns: 1fr 100px 100px auto; gap: 0.4rem; margin-bottom: 0.35rem; align-items: center;">
+            <input type="text" class="form-control wo-exercise" placeholder="Exercise name" style="font-size: 0.82rem;" />
+            <select class="form-control wo-feeling" style="font-size: 0.82rem;">
+                <option value="easy">Easy</option><option value="moderate" selected>Moderate</option><option value="hard">Hard</option><option value="skipped">Skipped ❌</option>
+            </select>
+            <label style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; cursor: pointer;"><input type="checkbox" class="wo-completed" checked /> Done</label>
+            <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.diary-workout-row').remove()" title="Remove" style="padding: 0.25rem 0.45rem;"><i class="fa-solid fa-xmark" style="color: var(--accent-red);"></i></button>
+        </div>`;
+        document.getElementById('workoutsContainer').insertAdjacentHTML('beforeend', html);
+    }
+
+    // === PAIN ===
+    function addPainRow() {
+        const html = `<div class="diary-pain-row" style="display: grid; grid-template-columns: 150px 80px 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;">
+            <input type="text" class="form-control pain-area" placeholder="Body area" style="font-size: 0.85rem;" />
+            <select class="form-control pain-severity" style="font-size: 0.85rem;">
+                <option value="1">1/5</option><option value="2">2/5</option><option value="3" selected>3/5</option><option value="4">4/5</option><option value="5">5/5</option>
+            </select>
+            <input type="text" class="form-control pain-desc" placeholder="Description…" style="font-size: 0.85rem;" />
+            <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.diary-pain-row').remove()" title="Remove"><i class="fa-solid fa-trash" style="color: var(--accent-red);"></i></button>
+        </div>`;
+        document.getElementById('painContainer').insertAdjacentHTML('beforeend', html);
+    }
+
+    // === FORM DATA COLLECTION ON SUBMIT ===
+    function collectFormData() {
+        const mt = [], mf = [], mq = [], mp = [], ms = [];
+
+        // 1. Collect from plan meal items (recommended meals)
+        document.querySelectorAll('.plan-meal-item').forEach(item => {
+            const mealType = item.dataset.mealType;
+            const recFood = item.dataset.food;
+            const recQty = item.dataset.qty;
+
+            if (item.classList.contains('state-ate')) {
+                mt.push(mealType);
+                mf.push(recFood);
+                mq.push(recQty);
+                mp.push('true');
+                ms.push('');
+            } else if (item.classList.contains('state-diff')) {
+                const customFood = item.querySelector('.custom-food')?.value || '';
+                const customQty = item.querySelector('.custom-qty')?.value || '';
+                if (customFood.trim()) {
+                    mt.push(mealType);
+                    mf.push(customFood);
+                    mq.push(customQty);
+                    mp.push('false');
+                    ms.push(recFood); // store what was recommended as substitution
+                }
+            }
+            // Skip state: don't add anything
+        });
+
+        // 2. Collect from extra meal rows (manual entries)
+        document.querySelectorAll('.diary-meal-row').forEach(r => {
+            const food = r.querySelector('.meal-food')?.value || '';
+            if (food.trim()) {
+                mt.push(r.querySelector('.meal-time')?.value || '');
+                mf.push(food);
+                mq.push(r.querySelector('.meal-qty')?.value || '');
+                mp.push('false');
+                ms.push('');
+            }
+        });
+
+        document.getElementById('mealTimesHidden').value = mt.join('|');
+        document.getElementById('mealFoodsHidden').value = mf.join('|');
+        document.getElementById('mealQuantitiesHidden').value = mq.join('|');
+        document.getElementById('mealFromPlanHidden').value = mp.join('|');
+        document.getElementById('mealSubstitutionsHidden').value = ms.join('|');
+
+        // === Workouts ===
+        const we = [], wc = [], wf = [], wn = [];
+
+        // 1. Collect from plan workout rows
+        document.querySelectorAll('.plan-workout-row').forEach(row => {
+            const name = row.querySelector('.plan-exercise-name')?.textContent?.trim() || '';
+            if (name) {
+                we.push(name);
+                wc.push(row.querySelector('.wo-plan-completed')?.checked ? 'true' : 'false');
+                wf.push(row.querySelector('.wo-plan-feeling')?.value || 'moderate');
+                wn.push('');
+            }
+        });
+
+        // 2. Collect from manual workout rows
+        document.querySelectorAll('.diary-workout-row').forEach(r => {
+            const ex = r.querySelector('.wo-exercise')?.value || '';
+            if (ex.trim()) {
+                we.push(ex);
+                wc.push(r.querySelector('.wo-completed')?.checked ? 'true' : 'false');
+                wf.push(r.querySelector('.wo-feeling')?.value || '');
+                wn.push('');
+            }
+        });
+
+        document.getElementById('workoutExercisesHidden').value = we.join('|');
+        document.getElementById('workoutCompletedHidden').value = wc.join('|');
+        document.getElementById('workoutFeelingsHidden').value = wf.join('|');
+        document.getElementById('workoutNotesHidden').value = wn.join('|');
+
+        // === Pain ===
+        const pa = [], ps = [], pd = [];
+        document.querySelectorAll('.diary-pain-row').forEach(r => {
+            pa.push(r.querySelector('.pain-area')?.value || '');
+            ps.push(r.querySelector('.pain-severity')?.value || '1');
+            pd.push(r.querySelector('.pain-desc')?.value || '');
+        });
+        document.getElementById('painAreasHidden').value = pa.join('|');
+        document.getElementById('painSeveritiesHidden').value = ps.join('|');
+        document.getElementById('painDescriptionsHidden').value = pd.join('|');
+    }
+
+    // Auto-collect on form submit
+    document.getElementById('diaryForm').addEventListener('submit', collectFormData);
+
+    // Date picker navigation
+    document.getElementById('datePicker').addEventListener('change', function() {
+        const selected = this.value;
+        if (selected) {
+            window.location.href = '@Url.Action("Index", "Diary")?userId=@userId&date=' + selected;
+        }
+    });
+</script>
+}

@@ -10,6 +10,9 @@
             <p class="page-subtitle">Macro-optimized recovery diet plan.</p>
         </div>
         <div style="display: flex; gap: 0.5rem;">
+            <a href="/Diet/Feedback?userId=@Model.UserId&day=@Model.DayOfWeek" class="btn btn-sm btn-outline">
+                <i class="fa-solid fa-star"></i> Rate Plan
+            </a>
             <form method="post" asp-controller="Diet" asp-action="ResendEmail" style="margin: 0;">
                 <input type="hidden" name="userId" value="@Model.UserId" />
                 <input type="hidden" name="dayOfWeek" value="@Model.DayOfWeek" />

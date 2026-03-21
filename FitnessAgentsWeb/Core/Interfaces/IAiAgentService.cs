@@ -5,7 +5,7 @@ namespace FitnessAgentsWeb.Core.Interfaces
 {
     public interface IAiAgentService
     {
-        Task<string> GenerateWorkoutAsync(UserHealthContext context);
-        Task<string> GenerateRecoveryDietJsonAsync(string upcomingWorkoutPlan, UserHealthContext context);
+        Task<string> GenerateWorkoutAsync(UserHealthContext context, string similarPlansContext = "", string recentFeedbackContext = "", string digestContext = "");
+        Task<string> GenerateRecoveryDietJsonAsync(string upcomingWorkoutPlan, UserHealthContext context, string similarPlansContext = "", string recentFeedbackContext = "", string digestContext = "");
     }
 }

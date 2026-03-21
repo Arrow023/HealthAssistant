@@ -10,6 +10,9 @@
             <p class="page-subtitle">AI-generated elite workout protocol.</p>
         </div>
         <div style="display: flex; gap: 0.5rem;">
+            <a href="/Workout/Feedback?userId=@Model.UserId&day=@Model.DayOfWeek" class="btn btn-sm btn-outline">
+                <i class="fa-solid fa-star"></i> Rate Plan
+            </a>
             <form method="post" asp-controller="Workout" asp-action="ResendEmail" style="margin: 0;">
                 <input type="hidden" name="userId" value="@Model.UserId" />
                 <input type="hidden" name="dayOfWeek" value="@Model.DayOfWeek" />

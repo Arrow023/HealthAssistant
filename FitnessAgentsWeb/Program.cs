@@ -61,10 +61,29 @@ builder.Services.AddScoped<INotificationService>(sp =>
 builder.Services.AddSingleton<InBodyOcrService>();
 builder.Services.AddSingleton<IAiOrchestratorService, AiOrchestratorService>();
 
+// Vector store and embedding services (optional — gracefully degrade if Qdrant is unreachable)
+builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();
+builder.Services.AddSingleton<IPlanVectorStore, QdrantPlanVectorStore>();
+
 // Register Background Service
 builder.Services.AddHostedService<WorkoutEmailSchedulerService>();
 
 var app = builder.Build();
+
+// Initialize vector store collection on startup (non-blocking)
+try
+{
+    var vectorStore = app.Services.GetService<IPlanVectorStore>();
+    if (vectorStore is not null)
+    {
+        _ = Task.Run(async () =>
+        {
+            try { await vectorStore.InitializeAsync(); }
+            catch (Exception ex) { app.Logger.LogWarning(ex, "Qdrant vector store initialization failed — AI memory features will be unavailable"); }
+        });
+    }
+}
+catch { /* Vector store not configured — gracefully degrade */ }
 
 // Enable routing and static files for the UI Dashboard
 app.UseStaticFiles();

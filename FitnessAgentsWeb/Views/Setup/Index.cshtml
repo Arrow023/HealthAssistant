@@ -108,6 +108,48 @@
                     </div>
                 </div>
 
+                <!-- Vector Store -->
+                <div class="card" style="margin-bottom: 1.25rem;">
+                    <h3 style="margin: 0 0 1rem; font-weight: 700;"><i class="fa-solid fa-database" style="color: var(--primary); margin-right: 0.5rem;"></i>Vector Store (Qdrant) <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">— Optional</span></h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 1rem;">Enable AI memory to learn from past workouts & diet feedback over time.</p>
+                    <div class="grid-2" style="gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Qdrant Endpoint</label>
+                            <input type="text" name="qdrantEndpoint" placeholder="http://localhost:6334" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Qdrant API Key</label>
+                            <input type="password" name="qdrantApiKey" placeholder="Optional for local" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Embedding Model -->
+                <div class="card" style="margin-bottom: 1.25rem;">
+                    <h3 style="margin: 0 0 1rem; font-weight: 700;"><i class="fa-solid fa-vector-square" style="color: var(--accent-purple); margin-right: 0.5rem;"></i>Embedding Model <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">— Optional</span></h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 1rem;">Separate embedding provider for semantic search. Falls back to AI Agent settings when empty.</p>
+                    <div class="grid-2" style="gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Model ID</label>
+                            <input type="text" name="embeddingModel" placeholder="text-embedding-3-small" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">API Key</label>
+                            <input type="password" name="embeddingApiKey" placeholder="Falls back to AI key" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="grid-2" style="gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Endpoint URL</label>
+                            <input type="text" name="embeddingEndpoint" placeholder="Falls back to AI endpoint" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Vector Dimension</label>
+                            <input type="number" name="embeddingDimension" placeholder="1536" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+
                 <button type="submit" class="btn btn-block" style="padding: 0.85rem;">
                     <i class="fa-solid fa-rocket" style="margin-right: 0.5rem;"></i>Initialize FitnessAgents
                 </button>

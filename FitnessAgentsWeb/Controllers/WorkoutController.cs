@@ -99,6 +99,48 @@ public class WorkoutController : Controller
         return RedirectToAction("Index", new { userId });
     }
 
+    [HttpGet]
+    public async Task<IActionResult> Feedback(string userId, string day)
+    {
+        userId = ResolveUserId(userId);
+        ViewData["ActiveNav"] = "workout";
+
+        string planId = $"{userId}_{day}_workout";
+        var existing = await _storageRepository.GetPlanFeedbackAsync(userId, planId);
+
+        var model = new PlanFeedbackViewModel
+        {
+            UserId = userId,
+            DayOfWeek = day,
+            PlanType = "workout",
+            ExistingFeedback = existing
+        };
+
+        return View("Feedback", model);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SubmitFeedback(PlanFeedbackViewModel model)
+    {
+        model.UserId = ResolveUserId(model.UserId);
+
+        var feedback = new Models.PlanFeedback
+        {
+            PlanId = $"{model.UserId}_{model.DayOfWeek}_workout",
+            PlanType = "workout",
+            FeedbackDate = DateTime.UtcNow,
+            Rating = model.Rating,
+            Difficulty = model.Difficulty ?? "just-right",
+            SkippedItems = string.IsNullOrEmpty(model.SkippedItems)
+                ? []
+                : model.SkippedItems.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+            Note = model.Note ?? string.Empty
+        };
+
+        await _storageRepository.SavePlanFeedbackAsync(model.UserId, feedback);
+        return RedirectToAction("Detail", new { userId = model.UserId, day = model.DayOfWeek });
+    }
+
     private string ResolveUserId(string? userId)
     {
         if (User.IsInRole("User"))

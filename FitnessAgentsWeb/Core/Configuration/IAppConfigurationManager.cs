@@ -9,7 +9,9 @@ namespace FitnessAgentsWeb.Core.Configuration
             string aiModel, string aiEndpoint, string aiKey, 
             string ocrModel, string ocrEndpoint, string ocrKey,
             string smtpHost, string smtpPort, string fromEmail, string smtpPassword,
-            string timezone, string firebaseDatabaseSecret = "");
+            string timezone, string firebaseDatabaseSecret = "",
+            string qdrantEndpoint = "", string qdrantApiKey = "",
+            string embeddingModel = "", string embeddingEndpoint = "", string embeddingApiKey = "", string embeddingDimension = "");
 
         Task<bool> IsAppConfiguredAsync();
         

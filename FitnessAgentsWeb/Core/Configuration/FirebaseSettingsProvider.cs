@@ -33,6 +33,12 @@ namespace FitnessAgentsWeb.Core.Configuration
         private string _adminPassword = string.Empty;
         private string _appTimezone = "India Standard Time";
         private string _firebaseDatabaseSecret = string.Empty;
+        private string _qdrantEndpoint = string.Empty;
+        private string _qdrantApiKey = string.Empty;
+        private string _embeddingModel = string.Empty;
+        private string _embeddingEndpoint = string.Empty;
+        private string _embeddingApiKey = string.Empty;
+        private string _embeddingDimension = string.Empty;
 
         private readonly Microsoft.Extensions.Logging.ILogger<FirebaseSettingsProvider> _logger;
 
@@ -84,7 +90,9 @@ namespace FitnessAgentsWeb.Core.Configuration
             string aiModel, string aiEndpoint, string aiKey, 
             string ocrModel, string ocrEndpoint, string ocrKey,
             string smtpHost, string smtpPort, string fromEmail, string smtpPassword,
-            string timezone, string firebaseDatabaseSecret = "")
+            string timezone, string firebaseDatabaseSecret = "",
+            string qdrantEndpoint = "", string qdrantApiKey = "",
+            string embeddingModel = "", string embeddingEndpoint = "", string embeddingApiKey = "", string embeddingDimension = "")
         {
             var configData = new Dictionary<string, object>
             {
@@ -101,7 +109,13 @@ namespace FitnessAgentsWeb.Core.Configuration
                 { "FromEmail", fromEmail },
                 { "SmtpPassword", smtpPassword },
                 { "AppTimezone", timezone },
-                { "FirebaseDatabaseSecret", firebaseDatabaseSecret }
+                { "FirebaseDatabaseSecret", firebaseDatabaseSecret },
+                { "QdrantEndpoint", qdrantEndpoint },
+                { "QdrantApiKey", qdrantApiKey },
+                { "EmbeddingModel", embeddingModel },
+                { "EmbeddingEndpoint", embeddingEndpoint },
+                { "EmbeddingApiKey", embeddingApiKey },
+                { "EmbeddingDimension", embeddingDimension }
             };
 
             // Save global configuration
@@ -166,6 +180,12 @@ namespace FitnessAgentsWeb.Core.Configuration
                     _adminPassword = snapshot.ContainsKey("AdminPassword") ? snapshot["AdminPassword"].ToString()! : "";
                     _appTimezone = snapshot.ContainsKey("AppTimezone") ? snapshot["AppTimezone"].ToString()! : "India Standard Time";
                     _firebaseDatabaseSecret = snapshot.ContainsKey("FirebaseDatabaseSecret") ? snapshot["FirebaseDatabaseSecret"].ToString()! : "";
+                    _qdrantEndpoint = snapshot.ContainsKey("QdrantEndpoint") ? snapshot["QdrantEndpoint"].ToString()! : "";
+                    _qdrantApiKey = snapshot.ContainsKey("QdrantApiKey") ? snapshot["QdrantApiKey"].ToString()! : "";
+                    _embeddingModel = snapshot.ContainsKey("EmbeddingModel") ? snapshot["EmbeddingModel"].ToString()! : "";
+                    _embeddingEndpoint = snapshot.ContainsKey("EmbeddingEndpoint") ? snapshot["EmbeddingEndpoint"].ToString()! : "";
+                    _embeddingApiKey = snapshot.ContainsKey("EmbeddingApiKey") ? snapshot["EmbeddingApiKey"].ToString()! : "";
+                    _embeddingDimension = snapshot.ContainsKey("EmbeddingDimension") ? snapshot["EmbeddingDimension"].ToString()! : "";
                     
                     TimezoneHelper.CurrentTimezoneId = _appTimezone;
                     
@@ -200,5 +220,11 @@ namespace FitnessAgentsWeb.Core.Configuration
         public string GetAdminPassword() => _adminPassword;
         public string GetAppTimezone() => _appTimezone;
         public string GetFirebaseDatabaseSecret() => _firebaseDatabaseSecret;
+        public string GetQdrantEndpoint() => _qdrantEndpoint;
+        public string GetQdrantApiKey() => _qdrantApiKey;
+        public string GetEmbeddingModel() => _embeddingModel;
+        public string GetEmbeddingEndpoint() => _embeddingEndpoint;
+        public string GetEmbeddingApiKey() => _embeddingApiKey;
+        public string GetEmbeddingDimension() => _embeddingDimension;
     }
 }

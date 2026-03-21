@@ -7,6 +7,7 @@ using System;
 using System.ClientModel;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using FitnessAgentsWeb.Core.Helpers;
 
@@ -51,9 +52,19 @@ namespace FitnessAgentsWeb.Core.Services
             int end = aiResponse.LastIndexOf('}');
             if (start >= 0 && end > start)
             {
-                return aiResponse.Substring(start, end - start + 1).Trim();
+                string json = aiResponse.Substring(start, end - start + 1).Trim();
+                return SanitizeJson(json);
             }
             return "{}";
+        }
+
+        /// <summary>
+        /// Fixes common AI JSON mistakes: unquoted property keys like { exercise": ... }
+        /// </summary>
+        private static string SanitizeJson(string json)
+        {
+            // Fix unquoted keys: matches patterns like { key" or , key" and adds the missing opening quote
+            return Regex.Replace(json, @"([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)("")\s*:", "$1\"$2\":");
         }
 
         protected DateTime GetAppNow()

@@ -41,6 +41,7 @@ public class ProfileController : Controller
     public async Task<IActionResult> UpdatePreferences(
         string userId, string email, string notificationTime, string preferences, string foodPreferences,
         string firstName, string lastName, string newPassword, string? webhookHeaderKey, string? webhookHeaderValue,
+        string excludedFoods, string cuisineStyle, string cookingOils, string stapleGrains,
         string scheduleMonday, string scheduleTuesday, string scheduleWednesday, string scheduleThursday,
         string scheduleFriday, string scheduleSaturday, string scheduleSunday)
     {
@@ -57,6 +58,11 @@ public class ProfileController : Controller
             profile.LastName = lastName;
             profile.WebhookHeaderKey = webhookHeaderKey;
             profile.WebhookHeaderValue = webhookHeaderValue;
+
+            profile.ExcludedFoods = ParseCommaSeparated(excludedFoods);
+            profile.CuisineStyle = cuisineStyle ?? string.Empty;
+            profile.CookingOils = ParseCommaSeparated(cookingOils);
+            profile.StapleGrains = ParseCommaSeparated(stapleGrains);
 
             profile.WorkoutSchedule["Monday"] = scheduleMonday;
             profile.WorkoutSchedule["Tuesday"] = scheduleTuesday;
@@ -99,5 +105,14 @@ public class ProfileController : Controller
             return User.Identity?.Name ?? "default_user";
 
         return string.IsNullOrEmpty(userId) ? User.Identity?.Name ?? "default_user" : userId;
+    }
+
+    private static List<string> ParseCommaSeparated(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return new List<string>();
+        return value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => s.ToLowerInvariant())
+            .Distinct()
+            .ToList();
     }
 }

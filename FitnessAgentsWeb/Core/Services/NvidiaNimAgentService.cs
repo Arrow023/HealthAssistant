@@ -19,7 +19,7 @@ namespace FitnessAgentsWeb.Core.Services
             : base(configProvider, logger)
         {
         }
-        public async Task<string> GenerateWorkoutAsync(Models.UserHealthContext context)
+        public async Task<string> GenerateWorkoutAsync(Models.UserHealthContext context, string similarPlansContext = "", string recentFeedbackContext = "", string digestContext = "")
         {
             IChatClient chatClient = GetChatClient();
             var now = GetAppNow();
@@ -53,6 +53,7 @@ namespace FitnessAgentsWeb.Core.Services
             Weekly History: {context.WeeklyHistoryBrief}
             Preferences/Conditions: {context.ConditionsBrief}
             InBody Analysis (secondary guidance): {context.InBodyBrief}
+            {(string.IsNullOrEmpty(context.DiaryBrief) ? "" : $"\n═══ DIARY PATTERNS (recent user logs) ═══\n{context.DiaryBrief}\n")}{(string.IsNullOrEmpty(digestContext) ? "" : $"\n═══ LONG-TERM BEHAVIORAL PATTERNS (weekly digests) ═══\n{digestContext}INSTRUCTIONS: These are aggregated weekly patterns from the user's diary history. Use them to identify recurring trends — e.g. exercises they frequently skip, persistent pain areas to avoid, consistent energy/mood patterns.\n")}{(string.IsNullOrEmpty(similarPlansContext) ? "" : $"\nPAST SUCCESSFUL PLANS (similar context, user-rated):\n{similarPlansContext}\n")}{(string.IsNullOrEmpty(recentFeedbackContext) ? "" : $"\nRECENT USER FEEDBACK:\n{recentFeedbackContext}\nINSTRUCTIONS: Learn from the user's preferences above. Incorporate patterns from highly-rated plans. Avoid patterns from poorly-rated plans or skipped exercises.\n")}
             
             JSON Schema:
             {{
@@ -96,7 +97,7 @@ namespace FitnessAgentsWeb.Core.Services
                 return "{}";
             }
         }
-        public async Task<string> GenerateRecoveryDietJsonAsync(string upcomingWorkoutPlan, Models.UserHealthContext context)
+        public async Task<string> GenerateRecoveryDietJsonAsync(string upcomingWorkoutPlan, Models.UserHealthContext context, string similarPlansContext = "", string recentFeedbackContext = "", string digestContext = "")
         {
             IChatClient chatClient = GetChatClient();
             string todayDate = GetAppNow().ToString("dddd, MMM dd, yyyy");
@@ -117,12 +118,20 @@ namespace FitnessAgentsWeb.Core.Services
             Active Calories Burned Today: {context.VitalsCalories}
             Total Calories Burned Today: {context.VitalsTotalCalories}
             
-            FOOD PREFERENCES:
-            {context.FoodPreferences}
+            ═══ HARD CONSTRAINTS (NEVER VIOLATE — violation = plan rejection) ═══
+            {(context.ExcludedFoods.Count > 0 ? $"EXCLUDED FOODS (NEVER include any of these): {string.Join(", ", context.ExcludedFoods)}" : "No food exclusions.")}
+            {(context.CookingOils.Count > 0 ? $"ALLOWED COOKING OILS ONLY: {string.Join(", ", context.CookingOils)}. Do NOT use any other oils." : "")}
+            {(context.StapleGrains.Count > 0 ? $"STAPLE GRAINS (prefer these): {string.Join(", ", context.StapleGrains)}" : "")}
 
+            ═══ CULTURAL CONTEXT ═══
+            {(string.IsNullOrEmpty(context.CuisineStyle) ? "No specific cuisine style." : $"Cuisine: {context.CuisineStyle} — ALL meals MUST use culturally authentic ingredients, recipes, and cooking methods from this cuisine. Do NOT default to generic Western health food.")}
+
+            ═══ SOFT PREFERENCES (respect when possible) ═══
+            {context.FoodPreferences}
+            {(string.IsNullOrEmpty(context.DiaryBrief) ? "" : $"\n═══ DIARY PATTERNS (what the user actually eats/does) ═══\n{context.DiaryBrief}\n")}{(string.IsNullOrEmpty(digestContext) ? "" : $"\n═══ LONG-TERM BEHAVIORAL PATTERNS (weekly digests) ═══\n{digestContext}INSTRUCTIONS: These weekly patterns reveal long-term food habits. Repeat consistent meals the user already eats regularly. Avoid foods from weeks with low ratings. Adapt portions to match actual consumption patterns.\n")}
             DIET HISTORY:
             {context.DietHistoryBrief}
-
+            {(string.IsNullOrEmpty(similarPlansContext) ? "" : $"\nPAST SUCCESSFUL DIET PLANS (similar context, user-rated):\n{similarPlansContext}\n")}{(string.IsNullOrEmpty(recentFeedbackContext) ? "" : $"\nRECENT USER FEEDBACK:\n{recentFeedbackContext}\nINSTRUCTIONS: Learn from the user's meal preferences. Repeat well-rated meals. Avoid items the user skipped.\n")}
             Provide a 4-meal macro-optimized diet plan for today.
             
             JSON Schema:

@@ -37,13 +37,20 @@ namespace FitnessAgentsWeb.Controllers
             string smtpPort, 
             string fromEmail,
             string smtpPassword,
-            string timezone)
+            string timezone,
+            string qdrantEndpoint,
+            string qdrantApiKey,
+            string embeddingModel,
+            string embeddingEndpoint,
+            string embeddingApiKey,
+            string embeddingDimension)
         {
-            // Simple validation could be added here
             await _configManager.SaveSetupSettingsAsync(
                 adminEmail, adminPassword, aiModel, aiEndpoint, aiKey, 
                 ocrModel, ocrEndpoint, ocrKey,
-                smtpHost, smtpPort, fromEmail, smtpPassword, timezone);
+                smtpHost, smtpPort, fromEmail, smtpPassword, timezone, "",
+                qdrantEndpoint, qdrantApiKey,
+                embeddingModel, embeddingEndpoint, embeddingApiKey, embeddingDimension);
 
             return RedirectToAction("Login", "Auth");
         }
