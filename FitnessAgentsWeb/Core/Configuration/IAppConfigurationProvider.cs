@@ -17,5 +17,11 @@ namespace FitnessAgentsWeb.Core.Configuration
         string GetAdminPassword();
         string GetAppTimezone();
         string GetFirebaseDatabaseSecret();
+        string GetQdrantEndpoint();
+        string GetQdrantApiKey();
+        string GetEmbeddingModel();
+        string GetEmbeddingEndpoint();
+        string GetEmbeddingApiKey();
+        string GetEmbeddingDimension();
     }
 }

@@ -33,14 +33,18 @@ namespace FitnessAgentsWeb.Controllers
             string aiModel, string aiEndpoint, string aiKey, 
             string ocrModel, string ocrEndpoint, string ocrKey,
             string smtpHost, string smtpPort, string fromEmail, string smtpPassword,
-            string timezone)
+            string timezone,
+            string qdrantEndpoint, string qdrantApiKey,
+            string embeddingModel, string embeddingEndpoint, string embeddingApiKey, string embeddingDimension)
         {
             await _appConfig.SaveSetupSettingsAsync(
                 adminEmail, adminPassword, 
                 aiModel, aiEndpoint, aiKey, 
                 ocrModel, ocrEndpoint, ocrKey,
                 smtpHost, smtpPort, fromEmail, smtpPassword,
-                timezone);
+                timezone, "",
+                qdrantEndpoint, qdrantApiKey,
+                embeddingModel, embeddingEndpoint, embeddingApiKey, embeddingDimension);
 
             return RedirectToAction("Settings");
         }

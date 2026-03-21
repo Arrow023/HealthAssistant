@@ -9,6 +9,10 @@ namespace FitnessAgentsWeb.Models
         public string NotificationTime { get; set; } = "08:00"; // HH:mm 24-hour format
         public string Preferences { get; set; } = "No reported pain or injuries."; // Used for AI ConditionsBrief
         public string FoodPreferences { get; set; } = "No specific food preferences."; 
+        public List<string> ExcludedFoods { get; set; } = new();
+        public string CuisineStyle { get; set; } = string.Empty;
+        public List<string> CookingOils { get; set; } = new();
+        public List<string> StapleGrains { get; set; } = new();
         public bool IsActive { get; set; } = true;
         public int Age { get; set; } = 30; // Used for VO2max estimation (220 - Age = HRmax)
 

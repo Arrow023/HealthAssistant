@@ -59,6 +59,14 @@ Upload a photo of your InBody body composition scan and the AI vision model extr
 - **Target Tracking** — Fat control and muscle control goals from the scan
 - **AI Context Integration** — Extracted data feeds directly into workout and diet generation
 
+### 🧠 Semantic Memory (Qdrant Vector Store)
+The AI learns from your history. Every generated plan is embedded and stored in a Qdrant vector database. When generating new plans, the AI retrieves similar past plans and user feedback to make smarter decisions over time.
+
+- **Similarity Search** — Finds past plans generated under similar biometric conditions (recovery, sleep, HRV)
+- **Feedback-Aware** — Star ratings, difficulty feedback, and skipped items are attached to stored plans
+- **Graceful Degradation** — If Qdrant is unavailable, the system works exactly as before
+- **Configurable** — Embedding model, endpoint, API key, and vector dimensions are all configurable via Admin Settings
+
 ### 📧 Automated Daily Emails
 Beautiful HTML emails delivered at your preferred time with your full daily briefing.
 
@@ -166,6 +174,7 @@ FitnessAgentsWeb/
 | **Repository Pattern** | `IStorageRepository` abstracts Firebase vs local storage |
 | **Background Service** | `WorkoutEmailSchedulerService` runs as a hosted service |
 | **Orchestrator** | `AiOrchestratorService` coordinates data → AI → storage → email |
+| **Semantic Memory** | `QdrantPlanVectorStore` + `EmbeddingService` enable historical plan retrieval |
 
 ### Scoring Engine
 
@@ -176,6 +185,68 @@ The `HealthConnectDataProcessor` computes three composite scores (0–100) from 
 | **Recovery Score** | HRV, Resting HR, Sleep Quality, SpO2 | Should you train hard today? |
 | **Sleep Score** | Duration, Deep Sleep %, Sleep Efficiency | How well did you recover? |
 | **Active Score** | Steps, Active Calories, Exercise Minutes | How active were you today? |
+
+### Semantic Memory Pipeline
+
+The Qdrant vector store and user feedback loop form a closed learning system. Here's how it works end-to-end:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        PLAN GENERATION (ProcessAndGenerateAsync)            │
+│                                                                             │
+│  1. Load health data → UserHealthContext                                    │
+│  2. Build query text from today's biometrics:                               │
+│     "Type: Workout | Target: Chest | Recovery: 78/100 | HRV: 45ms | ..."   │
+│  3. Generate embedding vector via EmbeddingService                          │
+│  4. Search Qdrant for similar past plans (cosine similarity ≥ 0.65)         │
+│  5. Load recent user feedback from Firebase                                 │
+│  6. Inject similar plans + feedback into AI prompt                          │
+│  7. AI generates plans with historical awareness                            │
+│  8. Save plans to Firebase (weekly history)                                 │
+│  9. Fire-and-forget: embed new plans → upsert to Qdrant                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        USER FEEDBACK LOOP                                   │
+│                                                                             │
+│  1. User views Workout/Diet detail page and clicks "Rate Plan"              │
+│  2. Submits: star rating (1-5), difficulty, skipped items, freeform note    │
+│  3. Feedback saved to Firebase at /users/{userId}/feedback/{planId}         │
+│  4. Feedback also attached to the Qdrant vector point (SetPayloadAsync)     │
+│  5. Next generation: feedback is retrieved and injected into AI prompts     │
+│     → AI learns to repeat high-rated patterns and avoid skipped items       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**When does it trigger?**
+
+| Event | What happens |
+|-------|-------------|
+| **App startup** | `QdrantPlanVectorStore.InitializeAsync()` creates the `health_plans` collection if it doesn't exist (fire-and-forget, non-blocking) |
+| **Each plan generation** | Before calling the LLM, the orchestrator queries Qdrant for the top 3 similar past plans and last 5 feedback items |
+| **After plan generation** | New plans are embedded and upserted to Qdrant in a background `Task.Run` (does not block the response) |
+| **User submits feedback** | Feedback is saved to Firebase and attached to the existing Qdrant point via `SetPayloadAsync` |
+| **Qdrant unavailable** | All vector operations gracefully degrade — plans generate normally without historical context |
+
+**Vector store details:**
+
+- **Collection:** `health_plans` (created automatically on first startup)
+- **Distance metric:** Cosine similarity
+- **Default vector dimension:** 1536 (configurable via Admin Settings → Embedding Model → Vector Dimension)
+- **Filters:** Each search is scoped to `user_id` + `plan_type` (workout/diet)
+- **Point ID:** Deterministic FNV-1a hash of `{userId}_{dayOfWeek}_{planType}` — same day/type overwrites the previous embedding
+- **Payload fields:** `user_id`, `plan_type`, `muscle_group`, `plan_date`, `recovery_score`, `sleep_score`, `active_score`, `plan_summary`, `plan_json`, `rhr`, `hrv`, `sleep_total`, `rating`, `difficulty`, `feedback_note`, `skipped_items`
+
+**Embedding model configuration:**
+
+The embedding model can be configured independently from the main AI model. If no dedicated embedding settings are provided, it falls back to the AI Orchestration endpoint and key with `text-embedding-3-small` as the default model.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Embedding Model ID | `text-embedding-3-small` | Any OpenAI-compatible embedding model |
+| Embedding Endpoint | *(AI Orchestration endpoint)* | Separate endpoint for embedding provider |
+| Embedding API Key | *(AI Orchestration key)* | Separate API key for embedding provider |
+| Vector Dimension | `1536` | Must match your chosen embedding model's output dimension |
 
 ---
 
@@ -189,6 +260,10 @@ The `HealthConnectDataProcessor` computes three composite scores (0–100) from 
   - [NVIDIA NIM](https://build.nvidia.com/) (recommended) or any OpenAI-compatible endpoint
   - A separate Vision/OCR model endpoint (for InBody scans)
 - SMTP credentials for email delivery (e.g., Gmail App Password)
+- *(Optional)* [Qdrant](https://qdrant.tech/) instance for semantic plan memory — [Qdrant Cloud](https://cloud.qdrant.io/) free tier or self-hosted via Docker:
+  ```bash
+  docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
+  ```
 - *(Optional)* An Android device with [HC Webhook](https://github.com/mcnaveen/health-connect-webhook/releases) for live health data
 
 ### Installation
@@ -217,6 +292,8 @@ On first launch, navigate to `/Setup` to configure:
 3. **OCR Vision Model** — For InBody scan extraction
 4. **SMTP** — Host, port, sender email, and app password
 5. **Timezone** — Application-wide timezone for scheduling and display
+6. **Vector Store (Qdrant)** — *(Optional)* Endpoint and API key for semantic plan memory
+7. **Embedding Model** — *(Optional)* Dedicated embedding model, endpoint, API key, and vector dimension (falls back to AI Agent settings when empty)
 
 After setup, log in at `/Auth/Login` and start adding users from the Admin panel.
 
@@ -344,6 +421,7 @@ X-Custom-Header-Key: <value>
 | `Microsoft.Extensions.AI.OpenAI` | 10.3.0 | OpenAI-compatible LLM integration |
 | `Microsoft.Agents.AI` | 1.0.0-rc4 | Multi-agent AI framework |
 | `OpenAI` | 2.9.1 | OpenAI C# client SDK |
+| `Qdrant.Client` | 1.12.0 | Vector similarity search for plan history |
 | `FirebaseDatabase.net` | 5.0.0 | Firebase Realtime Database client |
 | `FirebaseAdmin` | 3.4.0 | Firebase Admin SDK |
 | `Google.Apis.Auth` | 1.73.0 | Google authentication |
@@ -358,6 +436,7 @@ X-Custom-Header-Key: <value>
 | [HC Webhook](https://github.com/mcnaveen/health-connect-webhook) | Android app that bridges Health Connect → webhook. 18+ data types, configurable sync. |
 | [Google Health Connect](https://developer.android.com/health-and-fitness/health-connect) | Android API aggregating 50+ health apps (Google Fit, Samsung Health, Fitbit, Garmin, Oura) |
 | NVIDIA NIM / OpenAI | LLM provider for AI generation (any OpenAI-compatible endpoint works) |
+| [Qdrant](https://qdrant.tech/) | Open-source vector database for semantic plan history search |
 | Firebase Realtime Database | Cloud persistence for profiles, health data, and AI-generated plans |
 
 ---
@@ -368,7 +447,7 @@ X-Custom-Header-Key: <value>
 
 ```
 /config
-  /app_settings          → Global app configuration (AI keys, SMTP, timezone)
+  /app_settings          → Global app configuration (AI keys, SMTP, timezone, Qdrant, embedding model)
 /users
   /{userId}
     /profile             → UserProfile (name, email, schedule, preferences)
@@ -377,6 +456,7 @@ X-Custom-Header-Key: <value>
     /weekly_diet_history → WeeklyDietHistory (7-day AI diet plans)
     /inbody              → InBodyExport (latest body composition scan)
     /diet                → DietPlan (latest generated diet)
+    /feedback            → PlanFeedback (user ratings + notes per plan)
 ```
 
 ### Admin Settings (Web UI)
@@ -386,6 +466,8 @@ Access via **Admin → Settings** after login:
 - **AI Orchestration** — Model name, endpoint URL, API key
 - **OCR Vision** — Model name, endpoint URL, API key (for InBody scans)
 - **SMTP** — Host, port, sender email, app password
+- **Embedding Model** — Model ID, endpoint URL, API key, vector dimension (falls back to AI Orchestration if empty)
+- **Vector Store (Qdrant)** — Endpoint URL, API key
 - **Timezone** — Application-wide timezone (IST, EST, UTC, etc.)
 
 ### Per-User Settings (Profile)
@@ -418,6 +500,7 @@ Contributions are welcome! Here's how to get started:
 - Docker containerization
 - Unit and integration tests
 - Localization / multi-language support
+- Vector store alternatives (Pinecone, Weaviate, ChromaDB)
 
 ---
 

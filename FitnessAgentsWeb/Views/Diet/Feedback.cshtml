@@ -1,0 +1,151 @@
+@model PlanFeedbackViewModel
+@{
+    ViewData["Title"] = $"Rate {Model.DayOfWeek}'s Diet";
+}
+
+<div class="page-header fade-up">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h1 class="page-title">Rate @Model.DayOfWeek's Diet</h1>
+            <p class="page-subtitle">Your feedback helps the AI nutritionist create better meal plans.</p>
+        </div>
+        <a href="/Diet/Detail?userId=@Model.UserId&day=@Model.DayOfWeek" class="btn btn-sm btn-outline">
+            <i class="fa-solid fa-arrow-left"></i> Back to Plan
+        </a>
+    </div>
+</div>
+
+@if (Model.ExistingFeedback is not null)
+{
+    <div class="card fade-up" style="margin-bottom: 1.5rem; background: var(--primary-subtle); border-color: var(--primary);">
+        <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+            <i class="fa-solid fa-check-circle" style="color: var(--primary); font-size: 1.1rem; margin-top: 0.2rem;"></i>
+            <div>
+                <div style="font-weight: 700; margin-bottom: 0.25rem;">You already rated this plan</div>
+                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">
+                    Rating: @Model.ExistingFeedback.Rating/5 &bull;
+                    Difficulty: @Model.ExistingFeedback.Difficulty
+                    @if (!string.IsNullOrEmpty(Model.ExistingFeedback.Note))
+                    {
+                        <text>&bull; "@Model.ExistingFeedback.Note"</text>
+                    }
+                </p>
+            </div>
+        </div>
+    </div>
+}
+
+<form method="post" asp-controller="Diet" asp-action="SubmitFeedback">
+    <input type="hidden" name="UserId" value="@Model.UserId" />
+    <input type="hidden" name="DayOfWeek" value="@Model.DayOfWeek" />
+    <input type="hidden" name="PlanType" value="diet" />
+
+    <div class="grid-2 fade-up" style="align-items: start;">
+        <div>
+            <!-- Rating -->
+            <div class="card" style="margin-bottom: 1.25rem;">
+                <h3 style="margin: 0 0 1rem; font-weight: 700;">
+                    <i class="fa-solid fa-star" style="color: var(--accent-orange); margin-right: 0.5rem;"></i>Overall Rating
+                </h3>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    @for (int i = 1; i <= 5; i++)
+                    {
+                        var val = i;
+                        var isSelected = Model.ExistingFeedback?.Rating == val;
+                        <label style="cursor: pointer;">
+                            <input type="radio" name="Rating" value="@val" required
+                                   style="display: none;" @(isSelected ? "checked" : "") />
+                            <span class="rating-btn" data-value="@val"
+                                  style="display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 12px; border: 2px solid var(--border); font-size: 1.1rem; font-weight: 700; transition: all .15s;">
+                                @val<i class="fa-solid fa-star" style="font-size: 0.7rem; margin-left: 3px; color: var(--accent-orange);"></i>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <!-- Difficulty -->
+            <div class="card" style="margin-bottom: 1.25rem;">
+                <h3 style="margin: 0 0 1rem; font-weight: 700;">
+                    <i class="fa-solid fa-gauge-high" style="color: var(--accent-purple); margin-right: 0.5rem;"></i>How was the portion size?
+                </h3>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    @{
+                        var difficulties = new[] { ("too-easy", "Too Little", "fa-face-frown"), ("just-right", "Just Right", "fa-face-smile"), ("too-hard", "Too Much", "fa-face-tired") };
+                    }
+                    @foreach (var (value, label, icon) in difficulties)
+                    {
+                        var isSelected = (Model.ExistingFeedback?.Difficulty ?? "just-right") == value;
+                        <label style="cursor: pointer; flex: 1;">
+                            <input type="radio" name="Difficulty" value="@value" style="display: none;" @(isSelected ? "checked" : "") />
+                            <span class="difficulty-btn" style="display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 0.75rem; border-radius: 12px; border: 2px solid var(--border); transition: all .15s; text-align: center;">
+                                <i class="fa-solid @icon" style="font-size: 1.3rem;"></i>
+                                <span style="font-size: 0.85rem; font-weight: 600;">@label</span>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <!-- Skipped Meals -->
+            <div class="card" style="margin-bottom: 1.25rem;">
+                <h3 style="margin: 0 0 1rem; font-weight: 700;">
+                    <i class="fa-solid fa-forward" style="color: var(--accent-red); margin-right: 0.5rem;"></i>Skipped Meals
+                </h3>
+                <div class="form-group">
+                    <label class="form-label">Comma-separated meal names you didn't eat</label>
+                    <div class="field-hint">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>Use the <strong>meal names from your plan</strong>, separated by commas. If you substituted something, mention it in the notes below instead. Leave blank if you ate everything.</span>
+                    </div>
+                    <input type="text" name="SkippedItems"
+                           value="@(Model.ExistingFeedback?.SkippedItems is not null ? string.Join(", ", Model.ExistingFeedback.SkippedItems) : "")"
+                           placeholder="e.g. Evening Smoothie, Dinner Salad"
+                           class="form-control" />
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="card" style="margin-bottom: 1.25rem;">
+                <h3 style="margin: 0 0 1rem; font-weight: 700;">
+                    <i class="fa-solid fa-comment" style="color: var(--accent-green); margin-right: 0.5rem;"></i>Notes
+                </h3>
+                <div class="form-group">
+                    <label class="form-label">Any thoughts for the AI nutritionist?</label>
+                    <div class="field-hint">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>Tell the AI what to improve — <code>too bland</code> <code>ingredients unavailable</code> <code>more variety at breakfast</code> <code>loved the dal</code>. This feedback shapes <strong>all future diet plans</strong>.</span>
+                    </div>
+                    <textarea name="Note" rows="3" class="form-control"
+                              placeholder="e.g. More variety in breakfast options please.">@Model.ExistingFeedback?.Note</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <a href="/Diet/Detail?userId=@Model.UserId&day=@Model.DayOfWeek" class="btn btn-outline">Cancel</a>
+        <button type="submit" class="btn">
+            <i class="fa-solid fa-paper-plane"></i> Submit Feedback
+        </button>
+    </div>
+</form>
+
+<style>
+    input[type="radio"]:checked + .rating-btn {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+    }
+    input[type="radio"]:checked + .rating-btn i { color: #fff !important; }
+    input[type="radio"]:checked + .difficulty-btn {
+        background: var(--primary-subtle);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+    .rating-btn:hover, .difficulty-btn:hover {
+        border-color: var(--primary);
+    }
+</style>

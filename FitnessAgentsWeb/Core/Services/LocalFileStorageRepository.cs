@@ -2,7 +2,9 @@ using FitnessAgentsWeb.Core.Interfaces;
 using FitnessAgentsWeb.Models;
 using Microsoft.AspNetCore.Hosting;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -152,6 +154,46 @@ namespace FitnessAgentsWeb.Core.Services
         }
 
         public Task SaveLatestDietAsync(string userId, DietPlan diet)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<PlanFeedback?> GetPlanFeedbackAsync(string userId, string planId)
+        {
+            return Task.FromResult<PlanFeedback?>(null);
+        }
+
+        public Task SavePlanFeedbackAsync(string userId, PlanFeedback feedback)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<List<PlanFeedback>> GetRecentFeedbackAsync(string userId, int count = 5)
+        {
+            return Task.FromResult(new List<PlanFeedback>());
+        }
+
+        public Task<DailyDiary?> GetDiaryEntryAsync(string userId, string date)
+        {
+            return Task.FromResult<DailyDiary?>(null);
+        }
+
+        public Task SaveDiaryEntryAsync(string userId, DailyDiary entry)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<List<DailyDiary>> GetRecentDiaryEntriesAsync(string userId, int days = 7)
+        {
+            return Task.FromResult(new List<DailyDiary>());
+        }
+
+        public Task<WeeklyDigest?> GetWeeklyDigestAsync(string userId, string weekStart)
+        {
+            return Task.FromResult<WeeklyDigest?>(null);
+        }
+
+        public Task SaveWeeklyDigestAsync(string userId, WeeklyDigest digest)
         {
             return Task.CompletedTask;
         }

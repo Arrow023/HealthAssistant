@@ -29,6 +29,12 @@ namespace FitnessAgentsWeb.Core.Configuration
         public string GetAdminPassword() => _configuration["Admin:Password"] ?? string.Empty;
         public string GetAppTimezone() => _configuration["Regional:Timezone"] ?? "India Standard Time";
         public string GetFirebaseDatabaseSecret() => _configuration["FirebaseSettings:DatabaseSecret"] ?? string.Empty;
+        public string GetQdrantEndpoint() => _configuration["Qdrant:Endpoint"] ?? string.Empty;
+        public string GetQdrantApiKey() => _configuration["Qdrant:ApiKey"] ?? string.Empty;
+        public string GetEmbeddingModel() => _configuration["Embedding:Model"] ?? string.Empty;
+        public string GetEmbeddingEndpoint() => _configuration["Embedding:Endpoint"] ?? string.Empty;
+        public string GetEmbeddingApiKey() => _configuration["Embedding:ApiKey"] ?? string.Empty;
+        public string GetEmbeddingDimension() => _configuration["Embedding:Dimension"] ?? string.Empty;
         
         public bool IsConfigured()
         {

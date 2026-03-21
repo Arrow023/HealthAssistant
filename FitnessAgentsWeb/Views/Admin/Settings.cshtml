@@ -66,8 +66,43 @@
             </div>
         </div>
 
+        <!-- Embedding Model -->
+        <div class="card">
+            <h3 style="margin: 0 0 1rem; font-weight: 700;"><i class="fa-solid fa-vector-square" style="color: var(--accent-purple); margin-right: 0.5rem;"></i>Embedding Model</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 1rem;">Text embeddings for semantic search. Falls back to AI Orchestration settings when left empty.</p>
+            <div class="form-group">
+                <label class="form-label">Model ID</label>
+                <input type="text" name="embeddingModel" value="@Model.GetEmbeddingModel()" class="form-control" placeholder="text-embedding-3-small" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Endpoint URL</label>
+                <input type="text" name="embeddingEndpoint" value="@Model.GetEmbeddingEndpoint()" class="form-control" placeholder="Falls back to AI endpoint" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">API Key</label>
+                <input type="password" name="embeddingApiKey" value="@Model.GetEmbeddingApiKey()" class="form-control" placeholder="Falls back to AI API key" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Vector Dimension</label>
+                <input type="number" name="embeddingDimension" value="@Model.GetEmbeddingDimension()" class="form-control" placeholder="1536" />
+            </div>
+        </div>
+
         <!-- Regional + Admin -->
         <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+            <div class="card">
+                <h3 style="margin: 0 0 1rem; font-weight: 700;"><i class="fa-solid fa-database" style="color: var(--primary); margin-right: 0.5rem;"></i>Vector Store (Qdrant)</h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 1rem;">Semantic memory for AI plan history. Enables learning from past workouts & diet feedback.</p>
+                <div class="form-group">
+                    <label class="form-label">Qdrant Endpoint</label>
+                    <input type="text" name="qdrantEndpoint" value="@Model.GetQdrantEndpoint()" class="form-control" placeholder="http://localhost:6334" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Qdrant API Key</label>
+                    <input type="password" name="qdrantApiKey" value="@Model.GetQdrantApiKey()" class="form-control" placeholder="Optional — leave blank for local" />
+                </div>
+            </div>
+
             <div class="card">
                 <h3 style="margin: 0 0 1rem; font-weight: 700;"><i class="fa-solid fa-globe" style="color: var(--accent-green); margin-right: 0.5rem;"></i>Regional Settings</h3>
                 <div class="form-group">

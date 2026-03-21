@@ -333,5 +333,156 @@ namespace FitnessAgentsWeb.Core.Services
                 _logger.LogError(ex, $"[FirebaseStorage] Failed saving diet plan for {userId}");
             }
         }
+
+        // --- PLAN FEEDBACK ---
+        public async Task<PlanFeedback?> GetPlanFeedbackAsync(string userId, string planId)
+        {
+            userId = Norm(userId);
+            try
+            {
+                var snapshot = await _firebaseClient
+                    .Child("users")
+                    .Child(userId)
+                    .Child("feedback")
+                    .Child(planId)
+                    .OnceSingleAsync<PlanFeedback>();
+
+                return snapshot;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[FirebaseStorage] Failed getting feedback for {UserId}/{PlanId}", userId, planId);
+                return null;
+            }
+        }
+
+        public async Task SavePlanFeedbackAsync(string userId, PlanFeedback feedback)
+        {
+            userId = Norm(userId);
+            try
+            {
+                await _firebaseClient
+                    .Child("users")
+                    .Child(userId)
+                    .Child("feedback")
+                    .Child(feedback.PlanId)
+                    .PutAsync(feedback);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[FirebaseStorage] Failed saving feedback for {UserId}/{PlanId}", userId, feedback.PlanId);
+            }
+        }
+
+        public async Task<List<PlanFeedback>> GetRecentFeedbackAsync(string userId, int count = 5)
+        {
+            userId = Norm(userId);
+            try
+            {
+                var snapshot = await _firebaseClient
+                    .Child("users")
+                    .Child(userId)
+                    .Child("feedback")
+                    .OrderByKey()
+                    .LimitToLast(count)
+                    .OnceAsync<PlanFeedback>();
+
+                return snapshot
+                    .Select(f => f.Object)
+                    .OrderByDescending(f => f.FeedbackDate)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[FirebaseStorage] Failed getting recent feedback for {UserId}", userId);
+                return [];
+            }
+        }
+
+        public async Task<DailyDiary?> GetDiaryEntryAsync(string userId, string date)
+        {
+            userId = Norm(userId);
+            try
+            {
+                return await _firebaseClient
+                    .Child("users").Child(userId).Child("diary").Child(date)
+                    .OnceSingleAsync<DailyDiary>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[FirebaseStorage] Failed getting diary for {UserId} on {Date}", userId, date);
+                return null;
+            }
+        }
+
+        public async Task SaveDiaryEntryAsync(string userId, DailyDiary entry)
+        {
+            userId = Norm(userId);
+            try
+            {
+                entry.UpdatedAt = DateTime.UtcNow;
+                await _firebaseClient
+                    .Child("users").Child(userId).Child("diary").Child(entry.Date)
+                    .PutAsync(entry);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[FirebaseStorage] Failed saving diary for {UserId} on {Date}", userId, entry.Date);
+            }
+        }
+
+        public async Task<List<DailyDiary>> GetRecentDiaryEntriesAsync(string userId, int days = 7)
+        {
+            userId = Norm(userId);
+            try
+            {
+                var snapshot = await _firebaseClient
+                    .Child("users").Child(userId).Child("diary")
+                    .OrderByKey()
+                    .LimitToLast(days)
+                    .OnceAsync<DailyDiary>();
+
+                return snapshot
+                    .Select(d => d.Object)
+                    .OrderByDescending(d => d.Date)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[FirebaseStorage] Failed getting recent diary for {UserId}", userId);
+                return [];
+            }
+        }
+
+        public async Task<WeeklyDigest?> GetWeeklyDigestAsync(string userId, string weekStart)
+        {
+            userId = Norm(userId);
+            try
+            {
+                return await _firebaseClient
+                    .Child("users").Child(userId).Child("weekly_digests").Child(weekStart)
+                    .OnceSingleAsync<WeeklyDigest>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[FirebaseStorage] Failed getting weekly digest for {UserId} week {Week}", userId, weekStart);
+                return null;
+            }
+        }
+
+        public async Task SaveWeeklyDigestAsync(string userId, WeeklyDigest digest)
+        {
+            userId = Norm(userId);
+            try
+            {
+                await _firebaseClient
+                    .Child("users").Child(userId).Child("weekly_digests").Child(digest.WeekStart)
+                    .PutAsync(digest);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[FirebaseStorage] Failed saving weekly digest for {UserId} week {Week}", userId, digest.WeekStart);
+            }
+        }
     }
 }

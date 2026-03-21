@@ -4,7 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - FitnessAgents</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/layout.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/components.css" asp-append-version="true" />
@@ -31,6 +33,14 @@
     else
     {
     <div class="app-shell" id="appShell">
+        <!-- Animated Background Canvas -->
+        <div class="bg-canvas" aria-hidden="true">
+            <div class="bg-orb bg-orb--1"></div>
+            <div class="bg-orb bg-orb--2"></div>
+            <div class="bg-orb bg-orb--3"></div>
+            <div class="bg-orb bg-orb--4"></div>
+        </div>
+
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <a href="/" class="sidebar-brand">
@@ -55,6 +65,10 @@
                 <a href="/Diet" class="nav-link @(activeNav == "diet" ? "active" : "")">
                     <span class="nav-link-icon"><i class="fa-solid fa-utensils"></i></span>
                     <span>Diet Plan</span>
+                </a>
+                <a href="/Diary" class="nav-link @(activeNav == "diary" ? "active" : "")">
+                    <span class="nav-link-icon"><i class="fa-solid fa-book-open"></i></span>
+                    <span>Diary</span>
                 </a>
                 <a href="/Profile" class="nav-link @(activeNav == "profile" ? "active" : "")">
                     <span class="nav-link-icon"><i class="fa-solid fa-user"></i></span>
@@ -149,9 +163,15 @@
         function updateThemeIcon(theme) {
             var btn = document.getElementById('themeToggleBtn');
             if (!btn) return;
-            btn.innerHTML = theme === 'dark'
-                ? '<i class="fa-solid fa-sun"></i>'
-                : '<i class="fa-solid fa-moon"></i>';
+            var icon = theme === 'dark'
+                ? '<i class="fa-solid fa-sun" style="transition: transform 0.3s; color: #fbbf24;"></i>'
+                : '<i class="fa-solid fa-moon" style="transition: transform 0.3s; color: #6366f1;"></i>';
+            btn.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            btn.style.transform = 'rotate(180deg) scale(0.8)';
+            setTimeout(function() {
+                btn.innerHTML = icon;
+                btn.style.transform = 'rotate(0deg) scale(1)';
+            }, 150);
         }
 
         function toggleSidebar() {
