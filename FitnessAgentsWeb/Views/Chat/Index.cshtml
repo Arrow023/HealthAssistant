@@ -6,6 +6,14 @@
 <link rel="stylesheet" href="~/css/chat.css" asp-append-version="true" />
 
 <div class="chat-page" id="chatPage">
+    <!-- Top Bar (visible once conversation starts) -->
+    <div class="chat-topbar" id="chatTopbar" style="display:none;">
+        <button class="chat-new-btn" id="chatNewBtn" title="New conversation">
+            <i class="fa-solid fa-plus"></i>
+            <span>New Chat</span>
+        </button>
+    </div>
+
     <!-- Welcome Screen (shown when no messages) -->
     <div class="chat-welcome" id="chatWelcome">
         <div class="chat-welcome-icon">
@@ -15,11 +23,11 @@
         <p>Your personal health companion. Ask about your metrics, update preferences, log meals, or get insights from your data.</p>
 
         <div class="chat-starters" id="chatStarters">
-            <button class="chat-starter-btn" data-message="How did I sleep last night and what's my recovery looking like?">
+            <button class="chat-starter-btn" data-message="Give me a detailed breakdown of my sleep last night — stages, efficiency, and any issues.">
                 <div class="chat-starter-icon blue"><i class="fa-solid fa-moon"></i></div>
                 <div class="chat-starter-text">
-                    <strong>Sleep &amp; Recovery</strong>
-                    <span>Check your metrics and readiness</span>
+                    <strong>Sleep Analysis</strong>
+                    <span>Deep/REM/Light stages &amp; efficiency</span>
                 </div>
             </button>
             <button class="chat-starter-btn" data-message="What's my workout and diet plan for today?">
@@ -36,11 +44,25 @@
                     <span>Track what you've eaten today</span>
                 </div>
             </button>
-            <button class="chat-starter-btn" data-message="Show me my health trends and patterns from the past week">
+            <button class="chat-starter-btn" data-message="Show me my weekly digest — mood trends, workout adherence, and any recurring issues.">
                 <div class="chat-starter-icon purple"><i class="fa-solid fa-chart-line"></i></div>
                 <div class="chat-starter-text">
-                    <strong>Weekly Insights</strong>
-                    <span>Analyze your recent patterns</span>
+                    <strong>Weekly Digest</strong>
+                    <span>Behavioral patterns &amp; trends</span>
+                </div>
+            </button>
+            <button class="chat-starter-btn" data-message="Analyze my InBody scan — how's my muscle balance and body composition looking?">
+                <div class="chat-starter-icon teal"><i class="fa-solid fa-weight-scale"></i></div>
+                <div class="chat-starter-text">
+                    <strong>Body Composition</strong>
+                    <span>InBody segmental analysis</span>
+                </div>
+            </button>
+            <button class="chat-starter-btn" data-message="What exercises did I actually do today according to my watch?">
+                <div class="chat-starter-icon red"><i class="fa-solid fa-heart-pulse"></i></div>
+                <div class="chat-starter-text">
+                    <strong>Exercise Sessions</strong>
+                    <span>Health Connect tracked activity</span>
                 </div>
             </button>
         </div>
@@ -83,6 +105,8 @@
     var chatInput = document.getElementById('chatInput');
     var chatSendBtn = document.getElementById('chatSendBtn');
     var chatScrollBtn = document.getElementById('chatScrollBtn');
+    var chatTopbar = document.getElementById('chatTopbar');
+    var chatNewBtn = document.getElementById('chatNewBtn');
 
     // ── Auto-resize Textarea ──────────────────────────────
     chatInput.addEventListener('input', function() {
@@ -104,6 +128,19 @@
         } else {
             sendMessage();
         }
+    });
+
+    // ── New Conversation ────────────────────────────────
+    chatNewBtn.addEventListener('click', function() {
+        if (isStreaming) stopStreaming();
+        conversationHistory = [];
+        chatThread.innerHTML = '';
+        chatThread.style.display = 'none';
+        chatTopbar.style.display = 'none';
+        chatWelcome.style.display = '';
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+        chatInput.focus();
     });
 
     // ── Conversation Starters ────────────────────────────
@@ -132,9 +169,10 @@
         var text = chatInput.value.trim();
         if (!text || isStreaming) return;
 
-        // Hide welcome, show thread
+        // Hide welcome, show thread and topbar
         chatWelcome.style.display = 'none';
         chatThread.style.display = 'flex';
+        chatTopbar.style.display = 'flex';
 
         // Add user message
         appendMessage('user', text);
@@ -238,6 +276,7 @@
                             container.querySelector('.chat-msg-body').appendChild(contentEl);
                         }
                         contentEl.innerHTML = data.html || escapeHtml(data.text);
+                        addCopyButton(container, contentEl);
                         scrollToBottom();
                         break;
 
@@ -372,6 +411,26 @@
                 break;
             }
         }
+    }
+
+    function addCopyButton(container, contentEl) {
+        if (container.querySelector('.chat-copy-btn')) return;
+        var btn = document.createElement('button');
+        btn.className = 'chat-copy-btn';
+        btn.title = 'Copy response';
+        btn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+        btn.addEventListener('click', function() {
+            var text = contentEl.innerText || contentEl.textContent;
+            navigator.clipboard.writeText(text).then(function() {
+                btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                btn.classList.add('copied');
+                setTimeout(function() {
+                    btn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        });
+        container.querySelector('.chat-msg-body').appendChild(btn);
     }
 
     // ── Utilities ────────────────────────────────────────

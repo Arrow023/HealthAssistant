@@ -41,12 +41,23 @@ public class DiaryController : Controller
         var entry = await _storageRepository.GetDiaryEntryAsync(userId, selectedDate);
         var recentEntries = await _storageRepository.GetRecentDiaryEntriesAsync(userId, 14);
 
-        // Load diet plan only for today
-        var todayDiet = isToday ? await _storageRepository.GetLatestDietAsync(userId) : null;
-
-        // Load workout plan for the selected date's day of week (structured JSON)
+        // Compute selected date's day name for plan lookups
         var selectedDt = DateTime.TryParse(selectedDate, out var sdp) ? sdp : appNow;
         var dayName = selectedDt.DayOfWeek.ToString();
+
+        // Load diet plan: validate date for today, use weekly history for past dates
+        Models.DietPlan? todayDiet = null;
+        if (isToday)
+        {
+            var latestDiet = await _storageRepository.GetLatestDietAsync(userId);
+            if (latestDiet != null && latestDiet.PlanDate.Date == appNow.Date)
+                todayDiet = latestDiet;
+        }
+        var dietHistory = await _storageRepository.GetWeeklyDietHistoryAsync(userId);
+        if (todayDiet == null && dietHistory?.PastDiets.TryGetValue(dayName, out var histDiet) == true)
+            todayDiet = histDiet;
+
+        // Load workout plan for the selected date's day of week (structured JSON)
         WorkoutPlan? workoutPlan = null;
         string? workoutHtml = null;
 

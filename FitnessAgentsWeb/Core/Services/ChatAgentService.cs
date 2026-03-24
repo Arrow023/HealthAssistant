@@ -16,16 +16,22 @@ namespace FitnessAgentsWeb.Core.Services
     {
         private readonly IStorageRepository _storage;
         private readonly IHealthDataProcessor _healthProcessor;
+        private readonly IAppNotificationStore _notifications;
+        private readonly IPlanGenerationTracker _jobTracker;
 
         public ChatAgentService(
             IAppConfigurationProvider configProvider,
             IStorageRepository storage,
             IHealthDataProcessor healthProcessor,
+            IAppNotificationStore notifications,
+            IPlanGenerationTracker jobTracker,
             ILogger<ChatAgentService> logger)
             : base(configProvider, logger)
         {
             _storage = storage;
             _healthProcessor = healthProcessor;
+            _notifications = notifications;
+            _jobTracker = jobTracker;
         }
 
         public async IAsyncEnumerable<ChatStreamEvent> ProcessMessageAsync(
@@ -34,7 +40,7 @@ namespace FitnessAgentsWeb.Core.Services
             List<ChatHistoryMessage> conversationHistory,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var tools = new ChatAgentTools(_storage, _healthProcessor, userId, _logger);
+            var tools = new ChatAgentTools(_storage, _healthProcessor, _notifications, _jobTracker, userId, _logger);
             IChatClient chatClient = GetChatClient();
 
             var chatOptions = new ChatOptions
@@ -154,6 +160,15 @@ namespace FitnessAgentsWeb.Core.Services
                 AIFunctionFactory.Create(tools.GetHealthInsights),
                 AIFunctionFactory.Create(tools.GetTodayPlans),
                 AIFunctionFactory.Create(tools.GetRecentDiaryHistory),
+                AIFunctionFactory.Create(tools.GetSleepDetails),
+                AIFunctionFactory.Create(tools.GetExerciseHistory),
+                AIFunctionFactory.Create(tools.GetWeeklyWorkoutPlanHistory),
+                AIFunctionFactory.Create(tools.GetWeeklyDietPlanHistory),
+                AIFunctionFactory.Create(tools.GetRecentFeedback),
+                AIFunctionFactory.Create(tools.GetWeeklyDigest),
+                AIFunctionFactory.Create(tools.GetInBodyAnalysis),
+                AIFunctionFactory.Create(tools.GetNotifications),
+                AIFunctionFactory.Create(tools.GetPlanGenerationStatus),
                 AIFunctionFactory.Create(tools.UpdateFoodPreferences),
                 AIFunctionFactory.Create(tools.UpdateConditions),
                 AIFunctionFactory.Create(tools.UpdateWorkoutSchedule),
@@ -180,10 +195,17 @@ CORE BEHAVIOR:
 TOOL USAGE RULES:
 1. Before any UPDATE operation, call the corresponding GET tool first.
 2. For profile changes: GetUserProfile → then UpdateFoodPreferences / UpdateConditions / UpdateWorkoutSchedule
-3. For diary entries: GetTodayDiary → then UpsertDiaryEntry (merges, never replaces)
+3. For diary entries: GetTodayDiary or GetRecentDiaryHistory → then UpsertDiaryEntry with the target date (merges, never replaces). If the user mentions a specific date (e.g. ""yesterday"", ""last Monday""), resolve it to yyyy-MM-dd and pass it as the date parameter.
 4. For health questions: GetHealthInsights and/or GetTodayPlans
-5. For pattern analysis: GetRecentDiaryHistory
-6. When user provides plan feedback: SubmitPlanFeedback
+5. For sleep details: GetSleepDetails for stage breakdowns, efficiency, bedtime/wake time, vitals
+6. For exercise questions: GetExerciseHistory for sessions tracked by their device
+7. For weekly plans: GetWeeklyWorkoutPlanHistory / GetWeeklyDietPlanHistory for Mon-Sun schedule
+8. For pattern analysis: GetRecentDiaryHistory and/or GetWeeklyDigest for behavioral trends
+9. For body composition: GetInBodyAnalysis for segmental lean balance, targets, metabolic health
+10. For past feedback: GetRecentFeedback to see how the user rated previous plans
+11. For notifications: GetNotifications to check recent alerts
+12. For plan status: GetPlanGenerationStatus to check if plans are being generated
+13. When user provides plan feedback: SubmitPlanFeedback
 
 RESPONSE STYLE:
 - Keep responses focused and actionable
@@ -224,6 +246,15 @@ RESPONSE STYLE:
                 nameof(ChatAgentTools.GetHealthInsights) => await tools.GetHealthInsights(),
                 nameof(ChatAgentTools.GetTodayPlans) => await tools.GetTodayPlans(),
                 nameof(ChatAgentTools.GetRecentDiaryHistory) => await tools.GetRecentDiaryHistory(),
+                nameof(ChatAgentTools.GetSleepDetails) => await tools.GetSleepDetails(),
+                nameof(ChatAgentTools.GetExerciseHistory) => await tools.GetExerciseHistory(),
+                nameof(ChatAgentTools.GetWeeklyWorkoutPlanHistory) => await tools.GetWeeklyWorkoutPlanHistory(),
+                nameof(ChatAgentTools.GetWeeklyDietPlanHistory) => await tools.GetWeeklyDietPlanHistory(),
+                nameof(ChatAgentTools.GetRecentFeedback) => await tools.GetRecentFeedback(),
+                nameof(ChatAgentTools.GetWeeklyDigest) => await tools.GetWeeklyDigest(),
+                nameof(ChatAgentTools.GetInBodyAnalysis) => await tools.GetInBodyAnalysis(),
+                nameof(ChatAgentTools.GetNotifications) => await tools.GetNotifications(),
+                nameof(ChatAgentTools.GetPlanGenerationStatus) => await tools.GetPlanGenerationStatus(),
                 nameof(ChatAgentTools.UpdateFoodPreferences) => await tools.UpdateFoodPreferences(
                     GetArg(args, "excludedFoodsToAdd"),
                     GetArg(args, "excludedFoodsToRemove"),
@@ -238,6 +269,7 @@ RESPONSE STYLE:
                     GetArg(args, "thursday"), GetArg(args, "friday"), GetArg(args, "saturday"),
                     GetArg(args, "sunday")),
                 nameof(ChatAgentTools.UpsertDiaryEntry) => await tools.UpsertDiaryEntry(
+                    GetArg(args, "date"),
                     GetArg(args, "mealsJson"),
                     GetArg(args, "workoutLogJson"),
                     GetArg(args, "painLogJson"),
@@ -283,6 +315,15 @@ RESPONSE STYLE:
                 nameof(ChatAgentTools.GetHealthInsights) => "Analyzing health metrics",
                 nameof(ChatAgentTools.GetTodayPlans) => "Loading today's plans",
                 nameof(ChatAgentTools.GetRecentDiaryHistory) => "Reviewing diary history",
+                nameof(ChatAgentTools.GetSleepDetails) => "Analyzing sleep stages",
+                nameof(ChatAgentTools.GetExerciseHistory) => "Loading exercise sessions",
+                nameof(ChatAgentTools.GetWeeklyWorkoutPlanHistory) => "Loading weekly workout plans",
+                nameof(ChatAgentTools.GetWeeklyDietPlanHistory) => "Loading weekly diet plans",
+                nameof(ChatAgentTools.GetRecentFeedback) => "Reviewing past feedback",
+                nameof(ChatAgentTools.GetWeeklyDigest) => "Loading weekly digest",
+                nameof(ChatAgentTools.GetInBodyAnalysis) => "Analyzing body composition",
+                nameof(ChatAgentTools.GetNotifications) => "Checking notifications",
+                nameof(ChatAgentTools.GetPlanGenerationStatus) => "Checking plan generation",
                 nameof(ChatAgentTools.UpdateFoodPreferences) => "Updating food preferences",
                 nameof(ChatAgentTools.UpdateConditions) => "Updating conditions",
                 nameof(ChatAgentTools.UpdateWorkoutSchedule) => "Updating workout schedule",

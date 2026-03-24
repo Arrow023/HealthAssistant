@@ -1,3 +1,5 @@
+using FitnessAgentsWeb.Core.Configuration;
+using FitnessAgentsWeb.Core.Helpers;
 using FitnessAgentsWeb.Core.Interfaces;
 using FitnessAgentsWeb.Models.ViewModels;
 using Microsoft.AspNetCore.Authorization;
@@ -10,11 +12,13 @@ public class DietController : Controller
 {
     private readonly IStorageRepository _storageRepository;
     private readonly IAiOrchestratorService _orchestrator;
+    private readonly IAppConfigurationProvider _configProvider;
 
-    public DietController(IStorageRepository storageRepository, IAiOrchestratorService orchestrator)
+    public DietController(IStorageRepository storageRepository, IAiOrchestratorService orchestrator, IAppConfigurationProvider configProvider)
     {
         _storageRepository = storageRepository;
         _orchestrator = orchestrator;
+        _configProvider = configProvider;
     }
 
     public async Task<IActionResult> Index(string? userId = null)
@@ -26,10 +30,16 @@ public class DietController : Controller
         var historyTask = _storageRepository.GetWeeklyDietHistoryAsync(userId);
         await Task.WhenAll(dietTask, historyTask);
 
+        // Only show latest diet as "today's" if it was actually generated today
+        var latestDiet = dietTask.Result;
+        var appNow = TimezoneHelper.GetAppNow(_configProvider.GetAppTimezone());
+        if (latestDiet != null && latestDiet.PlanDate.Date != appNow.Date)
+            latestDiet = null;
+
         var model = new DietListViewModel
         {
             UserId = userId,
-            LatestDiet = dietTask.Result,
+            LatestDiet = latestDiet,
             DietHistory = historyTask.Result
         };
 

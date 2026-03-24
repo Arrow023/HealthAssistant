@@ -1,3 +1,4 @@
+using FitnessAgentsWeb.Core.Helpers;
 using FitnessAgentsWeb.Core.Interfaces;
 using FitnessAgentsWeb.Models;
 using System.ComponentModel;
@@ -14,17 +15,23 @@ namespace FitnessAgentsWeb.Tools
     {
         private readonly IStorageRepository _storage;
         private readonly IHealthDataProcessor _healthProcessor;
+        private readonly IAppNotificationStore _notifications;
+        private readonly IPlanGenerationTracker _jobTracker;
         private readonly string _userId;
         private readonly ILogger _logger;
 
         public ChatAgentTools(
             IStorageRepository storage,
             IHealthDataProcessor healthProcessor,
+            IAppNotificationStore notifications,
+            IPlanGenerationTracker jobTracker,
             string userId,
             ILogger logger)
         {
             _storage = storage;
             _healthProcessor = healthProcessor;
+            _notifications = notifications;
+            _jobTracker = jobTracker;
             _userId = userId;
             _logger = logger;
         }
@@ -191,6 +198,293 @@ namespace FitnessAgentsWeb.Tools
             return sb.ToString();
         }
 
+        [Description("Gets detailed sleep breakdown including sleep stages (Deep, REM, Light, Awake), durations, sleep efficiency, WASO, bedtime/wake time, and vitals during sleep.")]
+        public async Task<string> GetSleepDetails()
+        {
+            var healthData = await _storage.GetTodayHealthDataAsync(_userId);
+            if (healthData?.Sleep is not { Count: > 0 })
+                return "No sleep data available for today.";
+
+            var tz = ResolveTimeZone();
+            var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            var targetDate = nowLocal.Date;
+            var windowStart = targetDate.AddHours(-12);
+            var windowEnd = targetDate.AddHours(12);
+
+            var sessions = healthData.Sleep
+                .Where(s => { var local = TimeZoneInfo.ConvertTimeFromUtc(s.SessionEndTime, tz); return local >= windowStart && local < windowEnd; })
+                .ToList();
+            if (sessions.Count == 0) return "No sleep sessions found for today's window.";
+
+            var allStages = sessions.SelectMany(s => s.Stages).OrderBy(st => st.StartTime).ToList();
+            if (allStages.Count == 0) return "Sleep data found but no stage information available.";
+
+            // Stage codes: "1" = Awake, "6" = REM, "4" = Light, "5" = Deep
+            int awakeSecs = allStages.Where(st => st.Stage == "1").Sum(st => st.DurationSeconds);
+            int remSecs = allStages.Where(st => st.Stage == "6").Sum(st => st.DurationSeconds);
+            int lightSecs = allStages.Where(st => st.Stage == "4").Sum(st => st.DurationSeconds);
+            int deepSecs = allStages.Where(st => st.Stage == "5").Sum(st => st.DurationSeconds);
+            int totalSleepSecs = remSecs + lightSecs + deepSecs;
+            int totalTimeInBedSecs = sessions.Sum(s => s.DurationSeconds);
+            int totalStageSecs = awakeSecs + totalSleepSecs;
+
+            var sb = new StringBuilder();
+            sb.AppendLine("=== Sleep Stage Breakdown ===");
+            sb.AppendLine($"Deep Sleep: {FormatDuration(deepSecs)} ({(totalStageSecs > 0 ? Math.Round((double)deepSecs / totalStageSecs * 100) : 0)}%)");
+            sb.AppendLine($"REM Sleep: {FormatDuration(remSecs)} ({(totalStageSecs > 0 ? Math.Round((double)remSecs / totalStageSecs * 100) : 0)}%)");
+            sb.AppendLine($"Light Sleep: {FormatDuration(lightSecs)} ({(totalStageSecs > 0 ? Math.Round((double)lightSecs / totalStageSecs * 100) : 0)}%)");
+            sb.AppendLine($"Awake: {FormatDuration(awakeSecs)} ({(totalStageSecs > 0 ? Math.Round((double)awakeSecs / totalStageSecs * 100) : 0)}%)");
+            sb.AppendLine();
+            sb.AppendLine("=== Key Metrics ===");
+            sb.AppendLine($"Total Sleep: {FormatDuration(totalSleepSecs)}");
+            sb.AppendLine($"Time in Bed: {FormatDuration(totalTimeInBedSecs)}");
+            int targetSleepSecs = 8 * 3600;
+            int debtSecs = Math.Max(0, targetSleepSecs - totalSleepSecs);
+            sb.AppendLine($"Sleep Debt: {FormatDuration(debtSecs)} (vs 8h target)");
+
+            double efficiency = totalTimeInBedSecs > 0 ? (double)totalSleepSecs / totalTimeInBedSecs * 100 : 0;
+            sb.AppendLine($"Sleep Efficiency: {Math.Round(efficiency)}%");
+
+            // WASO
+            var sleepOnset = allStages.FirstOrDefault(st => st.Stage != "1" && st.Stage != "2");
+            var lastSleep = allStages.LastOrDefault(st => st.Stage != "1" && st.Stage != "2");
+            if (sleepOnset is not null && lastSleep is not null)
+            {
+                int wasoSecs = allStages
+                    .Where(st => st.Stage == "1" && st.StartTime >= sleepOnset.StartTime && st.EndTime <= lastSleep.EndTime)
+                    .Sum(st => st.DurationSeconds);
+                sb.AppendLine($"WASO (Wake After Sleep Onset): {FormatDuration(wasoSecs)}");
+            }
+
+            // Bed/Wake times
+            var earliest = allStages.OrderBy(st => st.StartTime).First();
+            var latest = allStages.OrderByDescending(st => st.EndTime).First();
+            sb.AppendLine($"Bedtime: {TimeZoneInfo.ConvertTimeFromUtc(earliest.StartTime, tz):hh:mm tt}");
+            sb.AppendLine($"Wake Time: {TimeZoneInfo.ConvertTimeFromUtc(latest.EndTime, tz):hh:mm tt}");
+
+            // HR during sleep
+            if (healthData.HeartRate is { Count: > 0 })
+            {
+                var sleepHr = healthData.HeartRate
+                    .Where(hr => hr.Time >= earliest.StartTime && hr.Time <= latest.EndTime)
+                    .ToList();
+                if (sleepHr.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("=== Vitals During Sleep ===");
+                    sb.AppendLine($"Heart Rate: Avg {Math.Round(sleepHr.Average(h => h.Bpm))} | Min {sleepHr.Min(h => h.Bpm)} | Max {sleepHr.Max(h => h.Bpm)} bpm");
+                }
+            }
+            if (healthData.HRV is { Count: > 0 })
+            {
+                var sleepHrv = healthData.HRV.Where(h => h.Time >= earliest.StartTime && h.Time <= latest.EndTime).ToList();
+                if (sleepHrv.Count > 0)
+                    sb.AppendLine($"HRV During Sleep: {Math.Round(sleepHrv.Average(h => h.Rmssd))} ms avg");
+            }
+
+            return sb.ToString();
+        }
+
+        [Description("Gets today's exercise sessions from Health Connect data — includes type, duration, start/end times. Shows what exercises the user actually performed (as tracked by their watch/phone).")]
+        public async Task<string> GetExerciseHistory()
+        {
+            var healthData = await _storage.GetTodayHealthDataAsync(_userId);
+            if (healthData?.Exercise is not { Count: > 0 })
+                return "No exercise sessions recorded in Health Connect data.";
+
+            var tz = ResolveTimeZone();
+            var sb = new StringBuilder();
+            sb.AppendLine($"=== Exercise Sessions ({healthData.Exercise.Count} total) ===");
+
+            int totalMinutes = 0;
+            foreach (var group in healthData.Exercise.OrderByDescending(e => e.StartTime).GroupBy(e => TimeZoneInfo.ConvertTimeFromUtc(e.StartTime, tz).Date))
+            {
+                sb.AppendLine($"\n--- {group.Key:ddd, MMM dd} ---");
+                foreach (var e in group)
+                {
+                    string name = ExerciseTypeHelper.GetExerciseName(e.Type);
+                    int durationMin = e.DurationSeconds / 60;
+                    totalMinutes += durationMin;
+                    string start = TimeZoneInfo.ConvertTimeFromUtc(e.StartTime, tz).ToString("hh:mm tt");
+                    string end = TimeZoneInfo.ConvertTimeFromUtc(e.EndTime, tz).ToString("hh:mm tt");
+                    sb.AppendLine($"  {name}: {durationMin} min ({start} – {end})");
+                }
+            }
+            sb.AppendLine($"\nTotal Exercise Time: {totalMinutes} minutes");
+            return sb.ToString();
+        }
+
+        [Description("Gets the full weekly workout plan history (Monday through Sunday) — shows what workout was planned for each day this week.")]
+        public async Task<string> GetWeeklyWorkoutPlanHistory()
+        {
+            var history = await _storage.GetWeeklyHistoryAsync(_userId);
+            if (history?.PastWorkoutPlans is not { Count: > 0 })
+                return "No weekly workout plan history available.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"=== This Week's Workout Plans (starting {history.WeekStartDate:MMM dd}) ===");
+            var dayOrder = new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+            foreach (var day in dayOrder)
+            {
+                if (history.PastWorkoutPlans.TryGetValue(day, out var plan))
+                {
+                    sb.AppendLine($"\n--- {day}: {plan.SessionTitle} ---");
+                    if (plan.MainWorkout?.Count > 0)
+                    {
+                        foreach (var ex in plan.MainWorkout)
+                            sb.AppendLine($"  {ex.Exercise}: {ex.Sets}x{ex.Reps} (Rest: {ex.Rest}) {ex.Notes}");
+                    }
+                    if (!string.IsNullOrEmpty(plan.CoachNotes))
+                        sb.AppendLine($"  Coach: {plan.CoachNotes}");
+                }
+                else
+                {
+                    sb.AppendLine($"\n--- {day}: No plan ---");
+                }
+            }
+            return sb.ToString();
+        }
+
+        [Description("Gets the full weekly diet plan history — shows what diet was planned for each day this week.")]
+        public async Task<string> GetWeeklyDietPlanHistory()
+        {
+            var history = await _storage.GetWeeklyDietHistoryAsync(_userId);
+            if (history?.PastDiets is not { Count: > 0 })
+                return "No weekly diet plan history available.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"=== This Week's Diet Plans (starting {history.WeekStartDate:MMM dd}) ===");
+            var dayOrder = new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+            foreach (var day in dayOrder)
+            {
+                if (history.PastDiets.TryGetValue(day, out var diet))
+                {
+                    sb.AppendLine($"\n--- {day} ({diet.TotalCaloriesTarget} kcal) ---");
+                    foreach (var meal in diet.Meals)
+                        sb.AppendLine($"  [{meal.MealType}] {meal.FoodName} - {meal.QuantityDescription} ({meal.Calories} cal)");
+                }
+                else
+                {
+                    sb.AppendLine($"\n--- {day}: No plan ---");
+                }
+            }
+            return sb.ToString();
+        }
+
+        [Description("Gets the user's recent plan feedback — shows how they rated past workout and diet plans (rating, difficulty, skipped items, notes).")]
+        public async Task<string> GetRecentFeedback()
+        {
+            var feedbacks = await _storage.GetRecentFeedbackAsync(_userId, 10);
+            if (feedbacks.Count == 0) return "No plan feedback submitted yet.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine("=== Recent Plan Feedback ===");
+            foreach (var fb in feedbacks)
+            {
+                sb.AppendLine($"\n[{fb.FeedbackDate:MMM dd}] {fb.PlanType} — ⭐{fb.Rating}/5 ({fb.Difficulty})");
+                if (fb.SkippedItems.Count > 0)
+                    sb.AppendLine($"  Skipped: {string.Join(", ", fb.SkippedItems)}");
+                if (!string.IsNullOrEmpty(fb.Note))
+                    sb.AppendLine($"  Note: {fb.Note}");
+            }
+            return sb.ToString();
+        }
+
+        [Description("Gets the latest weekly behavioral digest — aggregated mood, water intake, workout completion percentage, recurring pains, consistent meals, and frequently skipped exercises.")]
+        public async Task<string> GetWeeklyDigest()
+        {
+            // Try current week first, then last week
+            var monday = DateTime.UtcNow.Date.AddDays(-(int)DateTime.UtcNow.DayOfWeek + (int)DayOfWeek.Monday);
+            var digest = await _storage.GetWeeklyDigestAsync(_userId, monday.ToString("yyyy-MM-dd"));
+            digest ??= await _storage.GetWeeklyDigestAsync(_userId, monday.AddDays(-7).ToString("yyyy-MM-dd"));
+
+            if (digest is null) return "No weekly digest available yet.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"=== Weekly Digest ({digest.WeekStart} to {digest.WeekEnd}) ===");
+            sb.AppendLine($"Diary entries logged: {digest.DiaryDays} days");
+            sb.AppendLine($"Average Mood: {digest.AvgMood:F1}/5 | Average Water: {digest.AvgWater:F1}L");
+            sb.AppendLine($"Workout Completion: {digest.WorkoutCompletionPct:F0}% ({digest.TotalExercisesDone} done, {digest.TotalExercisesSkipped} skipped)");
+            if (digest.RecurringPains.Count > 0)
+                sb.AppendLine($"Recurring Pains: {string.Join(", ", digest.RecurringPains)}");
+            if (digest.ConsistentMeals.Count > 0)
+                sb.AppendLine($"Consistent Meals: {string.Join(", ", digest.ConsistentMeals)}");
+            if (digest.FrequentlySkipped.Count > 0)
+                sb.AppendLine($"Frequently Skipped: {string.Join(", ", digest.FrequentlySkipped)}");
+            if (!string.IsNullOrEmpty(digest.DigestText))
+                sb.AppendLine($"\nSummary: {digest.DigestText}");
+            return sb.ToString();
+        }
+
+        [Description("Gets detailed InBody body composition analysis including segmental lean balance (left/right arms, legs, trunk), fat/muscle control targets, and metabolic health.")]
+        public async Task<string> GetInBodyAnalysis()
+        {
+            var inbody = await _storage.GetLatestInBodyDataAsync(_userId);
+            if (inbody is null) return "No InBody scan data available.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"=== InBody Analysis (Scan: {inbody.ScanDate}) ===");
+            sb.AppendLine($"Weight: {inbody.Core.WeightKg}kg | Body Fat: {inbody.Core.Pbf}% | SMM: {inbody.Core.SmmKg}kg | BMI: {inbody.Core.Bmi}");
+            sb.AppendLine($"BMR: {inbody.Metabolism.Bmr} kcal | Visceral Fat Level: {inbody.Metabolism.VisceralFatLevel}");
+            sb.AppendLine($"Fat Control: {inbody.Targets.FatControl}kg | Muscle Control: {inbody.Targets.MuscleControl}kg");
+            sb.AppendLine();
+            sb.AppendLine("=== Segmental Lean Analysis ===");
+            sb.AppendLine($"Right Arm: {inbody.LeanBalance.RightArm}");
+            sb.AppendLine($"Left Arm: {inbody.LeanBalance.LeftArm}");
+            sb.AppendLine($"Trunk: {inbody.LeanBalance.Trunk}");
+            sb.AppendLine($"Right Leg: {inbody.LeanBalance.RightLeg}");
+            sb.AppendLine($"Left Leg: {inbody.LeanBalance.LeftLeg}");
+            return sb.ToString();
+        }
+
+        [Description("Gets the user's recent in-app notifications (plan ready, health data received, errors, etc.).")]
+        public Task<string> GetNotifications()
+        {
+            var notifs = _notifications.GetForUser(_userId);
+            if (notifs.Count == 0) return Task.FromResult("No notifications.");
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"=== Notifications ({_notifications.GetUnreadCount(_userId)} unread) ===");
+            foreach (var n in notifs.Take(10))
+            {
+                string read = n.IsRead ? "" : " 🔴";
+                sb.AppendLine($"[{n.CreatedAt:MMM dd HH:mm}] {n.Type}: {n.Title}{read}");
+                sb.AppendLine($"  {n.Message}");
+            }
+            return Task.FromResult(sb.ToString());
+        }
+
+        [Description("Checks if a plan generation job is currently in progress or recently completed for the user.")]
+        public Task<string> GetPlanGenerationStatus()
+        {
+            var job = _jobTracker.GetActiveJobForUser(_userId);
+            if (job is null) return Task.FromResult("No active plan generation job. Plans are generated when new health data arrives via webhook.");
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"=== Plan Generation Status ===");
+            sb.AppendLine($"Job ID: {job.JobId}");
+            sb.AppendLine($"Status: {job.Status} — {job.CurrentStep}");
+            sb.AppendLine($"Queued: {job.QueuedAt:HH:mm}");
+            if (job.CompletedAt.HasValue)
+                sb.AppendLine($"Completed: {job.CompletedAt.Value:HH:mm}");
+            if (!string.IsNullOrEmpty(job.ErrorMessage))
+                sb.AppendLine($"Error: {job.ErrorMessage}");
+            return Task.FromResult(sb.ToString());
+        }
+
+        private static TimeZoneInfo ResolveTimeZone()
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById(TimezoneHelper.CurrentTimezoneId); }
+            catch { return TimeZoneInfo.Utc; }
+        }
+
+        private static string FormatDuration(int totalSeconds)
+        {
+            int hours = totalSeconds / 3600;
+            int minutes = (totalSeconds % 3600) / 60;
+            return hours > 0 ? $"{hours}h {minutes}m" : $"{minutes}m";
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // WRITE TOOLS — Always read current state first, then merge
         // ═══════════════════════════════════════════════════════════════
@@ -302,8 +596,9 @@ namespace FitnessAgentsWeb.Tools
             return $"Workout schedule updated:\n{string.Join("\n", changes)}";
         }
 
-        [Description("Adds or updates today's diary entry. Merges with existing data — does not replace. MUST call GetTodayDiary first to see what's already logged. Parameters: mealsJson (JSON array of {mealTime, foodName, quantity, wasFromPlan, substitution}), workoutLogJson (JSON array of {exercise, completed, feeling, notes}), painLogJson (JSON array of {bodyArea, severity, description}), moodEnergy (1-5), waterIntakeLitres (double), sleepNotes (string), generalNotes (string). All parameters optional — provide only what needs updating.")]
+        [Description("Adds or updates a diary entry for a given date. Merges with existing data — does not replace. MUST call GetTodayDiary or GetRecentDiaryHistory first to see what's already logged. Parameters: date (yyyy-MM-dd, defaults to today if omitted), mealsJson (JSON array of {mealTime, foodName, quantity, wasFromPlan, substitution}), workoutLogJson (JSON array of {exercise, completed, feeling, notes}), painLogJson (JSON array of {bodyArea, severity, description}), moodEnergy (1-5), waterIntakeLitres (double), sleepNotes (string), generalNotes (string). All parameters optional — provide only what needs updating.")]
         public async Task<string> UpsertDiaryEntry(
+            string? date = null,
             string? mealsJson = null,
             string? workoutLogJson = null,
             string? painLogJson = null,
@@ -312,8 +607,10 @@ namespace FitnessAgentsWeb.Tools
             string? sleepNotes = null,
             string? generalNotes = null)
         {
-            string today = DateTime.UtcNow.ToString("yyyy-MM-dd");
-            var existing = await _storage.GetDiaryEntryAsync(_userId, today) ?? new DailyDiary { Date = today };
+            string targetDate = !string.IsNullOrWhiteSpace(date) && DateTime.TryParseExact(date, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out _)
+                ? date
+                : DateTime.UtcNow.ToString("yyyy-MM-dd");
+            var existing = await _storage.GetDiaryEntryAsync(_userId, targetDate) ?? new DailyDiary { Date = targetDate };
             var changes = new List<string>();
 
             if (!string.IsNullOrEmpty(mealsJson))
@@ -389,8 +686,8 @@ namespace FitnessAgentsWeb.Tools
 
             existing.UpdatedAt = DateTime.UtcNow;
             await _storage.SaveDiaryEntryAsync(_userId, existing);
-            _logger.LogInformation("[ChatAgent] Updated diary for {UserId}: {Changes}", _userId, string.Join("; ", changes));
-            return $"Diary updated for {today}:\n{string.Join("\n", changes)}";
+            _logger.LogInformation("[ChatAgent] Updated diary for {UserId} on {Date}: {Changes}", _userId, targetDate, string.Join("; ", changes));
+            return $"Diary updated for {targetDate}:\n{string.Join("\n", changes)}";
         }
 
         [Description("Submits feedback for today's workout or diet plan. Parameters: planType ('workout' or 'diet'), rating (1-5), difficulty ('too-easy', 'just-right', 'too-hard'), skippedItems (comma-separated exercise/meal names that were skipped), note (free-text feedback).")]

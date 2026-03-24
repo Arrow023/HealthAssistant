@@ -99,6 +99,21 @@ Plan generation runs asynchronously via a channel-based background service with 
 - **Admin Jobs Panel** — Manually trigger workout generation or weekly digest for any user from the Admin UI
 - **Auto-Cleanup** — Stale jobs older than 1 hour are automatically removed from memory
 
+### 🤖 AI Chat Agent
+A conversational assistant that reads and updates your health data through natural language, powered by tool-calling AI with SSE streaming.
+
+- **19 Tools** — 14 read tools + 5 write tools covering sleep, exercise, plans, diary, body composition, feedback, notifications, and more
+- **SSE Streaming** — Real-time Server-Sent Events deliver assistant responses with visible thinking indicators and collapsible tool call traces
+- **Sleep Analysis** — Queries sleep stages, efficiency, WASO, bedtime/wake time, and overnight vitals
+- **Exercise History** — Retrieves Health Connect exercise sessions with duration, calories, heart rate, and exercise type
+- **Weekly Plans** — Fetches full Mon–Sun workout and diet plan history for the current week
+- **Body Composition** — Reads InBody scan data including segmental lean analysis, metabolic metrics, and fat/muscle targets
+- **Notifications & Job Status** — Checks in-app notifications and background plan generation progress
+- **Read-Before-Write** — The AI always reads current data before making any modifications (preferences, diary entries, feedback)
+- **Conversation Starters** — Six quick-start prompts for common tasks: sleep analysis, today's plans, meal logging, weekly digest, body composition, and exercise sessions
+- **Copy & New Chat** — Copy assistant responses to clipboard; start a fresh conversation at any time
+- **Markdown Rendering** — Server-side Markdig rendering for tables, code blocks, lists, and structured responses
+
 ### 🧠 Semantic Memory (Qdrant Vector Store)
 The AI learns from your history. Every generated plan is embedded and stored in a Qdrant vector database. When generating new plans, the AI retrieves similar past plans and user feedback to make smarter decisions over time.
 
@@ -169,6 +184,7 @@ FitnessAgentsWeb/
 │   ├── SleepController         #   Detailed sleep analysis dashboard
 │   ├── DiaryController         #   Daily diary — meals, workouts, pain, mood
 │   ├── NotificationsController #   Real-time SSE notifications API
+│   ├── ChatController          #   AI chat agent (SSE streaming + tool-calling)
 │   ├── ProfileController       #   User prefs, schedule, InBody upload
 │   ├── AdminController         #   User management, settings, logs, job triggers
 │   ├── AuthController          #   Cookie-based login/logout
@@ -183,6 +199,7 @@ FitnessAgentsWeb/
 │   │   ├── IHealthDataProcessor     — Merge, deduplicate, compute scores
 │   │   ├── INotificationService     — Email delivery
 │   │   ├── IAppNotificationStore    — In-app notification store + SSE signaling
+│   │   ├── IChatAgentService        — Conversational AI agent with tool-calling
 │   │   ├── IPlanGenerationTracker   — Background job progress tracking
 │   │   ├── IPlanVectorStore         — Vector similarity search for plan history
 │   │   └── IEmbeddingService        — Text → vector embedding generation
@@ -198,6 +215,7 @@ FitnessAgentsWeb/
 │   │   ├── PlanGenerationBackgroundService — Channel-based async plan generation
 │   │   ├── PlanGenerationTracker           — In-memory job status tracking
 │   │   ├── AppNotificationStore            — Thread-safe SSE notification store
+│   │   ├── ChatAgentService                — Tool-calling chat agent with SSE streaming
 │   │   ├── QdrantPlanVectorStore           — Qdrant-backed vector similarity
 │   │   └── EmbeddingService                — OpenAI-compatible text embeddings
 │   │
@@ -222,6 +240,8 @@ FitnessAgentsWeb/
 ├── Views/                      # Razor views (MVC)
 ├── Templates/                  # HTML email templates (Workout + Diet)
 ├── Tools/                      # AI function-calling tool definitions
+│   ├── HealthDataTools         — Workout/diet generation tool functions
+│   └── ChatAgentTools          — 19 chat agent tools (read + write)
 └── wwwroot/                    # Static assets (CSS)
 ```
 
@@ -237,6 +257,7 @@ FitnessAgentsWeb/
 | **SSE Push** | `AppNotificationStore` signals browser clients via Server-Sent Events |
 | **Orchestrator** | `AiOrchestratorService` coordinates data → AI → storage → email |
 | **Semantic Memory** | `QdrantPlanVectorStore` + `EmbeddingService` enable historical plan retrieval |
+| **Tool-Calling Agent** | `ChatAgentService` + `ChatAgentTools` — LLM selects and invokes tools in a loop |
 
 ### Scoring Engine
 
