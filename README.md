@@ -145,7 +145,17 @@ Rate your AI-generated workout and diet plans directly from their detail pages �
 - **Diet Feedback** — Tap 👍 (great), 😐 (okay), or 👎 (didn't like) on the diet plan page
 - **Instant Save** — Feedback is persisted immediately and feeds back into the AI's semantic memory for smarter future plans
 
-### 📱 19 Health Data Types
+### � External OIDC SSO
+Optional single sign-on integration with any OpenID Connect provider — Okta, Entra ID, Auth0, Keycloak, Google, or any OIDC-compliant identity platform.
+
+- **Provider-Agnostic** — Configure any OIDC provider via `appsettings.json` without code changes
+- **Dual Auth** — Local username/password login and SSO coexist on the same login page
+- **Configurable UI** — Button label and icon are driven by config (`DisplayName`, `Icon`)
+- **Feature Toggle** — Set `Enabled: false` to hide the SSO button entirely and skip OIDC registration
+- **Claims Mapping** — Configurable `NameClaimType` and automatic role assignment for SSO users
+- **Full Logout** — Signs out of both the app cookie and the external identity provider
+
+### �📱 19 Health Data Types
 Ingests a comprehensive set of biometric data from 50+ Android health apps via Health Connect:
 
 Steps · Sleep (with stages) · Heart Rate · Resting Heart Rate · HRV · Active Calories · Total Calories · Distance · Exercise Sessions · Weight · Height · Blood Pressure · Blood Glucose · SpO2 · Body Temperature · Respiratory Rate · Hydration · Nutrition · VO2max
@@ -202,7 +212,7 @@ FitnessAgentsWeb/
 │   ├── ChatController          #   AI chat agent (SSE streaming + tool-calling)
 │   ├── ProfileController       #   User prefs, schedule, InBody upload
 │   ├── AdminController         #   User management, settings, logs, job triggers
-│   ├── AuthController          #   Cookie-based login/logout
+│   ├── AuthController          #   Cookie-based login/logout + OIDC SSO
 │   ├── SetupController         #   First-run configuration wizard
 │   └── DashboardController     #   Legacy redirect (→ Overview)
 │
@@ -570,6 +580,7 @@ X-Custom-Header-Key: <value>
 | `Microsoft.Agents.AI` | 1.0.0-rc4 | Multi-agent AI framework |
 | `OpenAI` | 2.9.1 | OpenAI C# client SDK |
 | `Qdrant.Client` | 1.12.0 | Vector similarity search for plan history |
+| `Microsoft.AspNetCore.Authentication.OpenIdConnect` | 8.0.14 | OIDC SSO with external identity providers |
 | `FirebaseDatabase.net` | 5.0.0 | Firebase Realtime Database client |
 | `FirebaseAdmin` | 3.4.0 | Firebase Admin SDK |
 | `Google.Apis.Auth` | 1.73.0 | Google authentication |
@@ -630,6 +641,45 @@ Each user can configure:
 - **Food Preferences** — Dietary restrictions and dislikes
 - **Webhook Security** — Custom header key/value for securing data ingest
 - **InBody Upload** — Upload body composition scan images for OCR
+
+### External OIDC SSO (Optional)
+
+To enable single sign-on, add an `ExternalAuth` section to `appsettings.json`:
+
+```json
+"ExternalAuth": {
+  "Enabled": true,
+  "DisplayName": "Okta SSO",
+  "Icon": "fa-solid fa-shield-halved",
+  "Authority": "https://your-org.okta.com/oauth2/default",
+  "ClientId": "your-client-id",
+  "ClientSecret": "your-client-secret",
+  "CallbackPath": "/authorization-code/callback",
+  "SignedOutCallbackPath": "/signout-callback-oidc",
+  "Scopes": ["openid", "profile", "email"],
+  "NameClaimType": "preferred_username"
+}
+```
+
+Set `"Enabled": false` or remove the section entirely to disable SSO.
+
+**Provider examples:**
+
+| Provider | Authority | NameClaimType |
+|----------|-----------|---------------|
+| Okta | `https://{domain}/oauth2/default` | `preferred_username` |
+| Entra ID | `https://login.microsoftonline.com/{tenantId}/v2.0` | `preferred_username` |
+| Auth0 | `https://{domain}` | `email` |
+| Keycloak | `https://{host}/realms/{realm}` | `preferred_username` |
+| Google | `https://accounts.google.com` | `email` |
+
+**Identity provider setup:**
+
+1. Create a **Web Application** (OIDC) in your provider's admin console
+2. Set **Sign-in redirect URI** to `https://<your-app>/authorization-code/callback`
+3. Set **Sign-out redirect URI** to `https://<your-app>/signout-callback-oidc`
+4. Enable the **Authorization Code** grant type
+5. Copy the Client ID, Client Secret, and Authority URL into the config above
 
 ---
 

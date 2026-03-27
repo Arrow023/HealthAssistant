@@ -48,6 +48,17 @@
                 </button>
             </form>
 
+            @if (Model?.SsoEnabled == true)
+            {
+                <div class="auth-divider">
+                    <span>or</span>
+                </div>
+
+                <a href="@Url.Action("ExternalLogin", "Auth")" class="btn btn-block btn-lg auth-sso-btn">
+                    <i class="@Model.SsoIcon"></i>Sign in with @Model.SsoDisplayName
+                </a>
+            }
+
             <p class="auth-footer">
                 Open-source AI Fitness Assistant &mdash; <a href="https://github.com">View on GitHub</a>
             </p>

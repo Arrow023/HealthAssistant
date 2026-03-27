@@ -1,5 +1,6 @@
 using FitnessAgentsWeb.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
@@ -30,12 +31,17 @@ public class NotificationsController : ControllerBase
     /// Each connected client receives events as they arrive.
     /// </summary>
     [HttpGet("stream")]
+    [RequestTimeout("SSE")]
     public async Task Stream(CancellationToken ct)
     {
         var userId = ResolveUserId();
         Response.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
+        Response.Headers["X-Accel-Buffering"] = "no";
+
+        var bufferingFeature = HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>();
+        bufferingFeature?.DisableBuffering();
 
         // Send current unread count immediately on connect
         await SendUnreadCount(userId, ct);

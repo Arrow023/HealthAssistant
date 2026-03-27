@@ -1,14 +1,32 @@
 using Serilog;
 using Serilog.Sinks.OpenTelemetry;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using FitnessAgentsWeb.Core.Factories;
 using FitnessAgentsWeb.Core.Interfaces;
 using FitnessAgentsWeb.Core.Services;
 using FitnessAgentsWeb.Core.Configuration;
 using FitnessAgentsWeb.Models;
+using System.Security.Claims;
 using System.Threading.Channels;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Kestrel to allow long-running SSE connections
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(10);
+    options.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5);
+});
+
+// Configure request timeout policies (SSE endpoints need longer timeouts)
+builder.Services.AddRequestTimeouts(options =>
+{
+    options.DefaultPolicy = new Microsoft.AspNetCore.Http.Timeouts.RequestTimeoutPolicy { Timeout = TimeSpan.FromMinutes(5) };
+    options.AddPolicy("SSE", new Microsoft.AspNetCore.Http.Timeouts.RequestTimeoutPolicy { Timeout = TimeSpan.FromMinutes(10) });
+});
 
 // Configure Serilog
 var logsFolder = Path.Combine(builder.Environment.ContentRootPath, "Logs");
@@ -59,13 +77,82 @@ builder.Host.UseSerilog((context, services, configuration) =>
 // Add MVC services for upcoming Dashboard
 builder.Services.AddControllersWithViews();
 
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    })
     .AddCookie(options =>
     {
         options.LoginPath = "/Auth/Login";
         options.LogoutPath = "/Auth/Logout";
         options.ExpireTimeSpan = TimeSpan.FromDays(7);
     });
+
+// Conditionally register OIDC when an external provider is configured
+var externalAuthSection = builder.Configuration.GetSection("ExternalAuth");
+var externalAuthEnabled = externalAuthSection.GetValue<bool>("Enabled");
+if (externalAuthEnabled && !string.IsNullOrWhiteSpace(externalAuthSection["Authority"]))
+{
+    builder.Services.AddAuthentication()
+        .AddOpenIdConnect(options =>
+        {
+            options.Authority = externalAuthSection["Authority"];
+            options.ClientId = externalAuthSection["ClientId"];
+            options.ClientSecret = externalAuthSection["ClientSecret"];
+            options.CallbackPath = externalAuthSection["CallbackPath"] ?? "/signin-oidc";
+            options.SignedOutCallbackPath = externalAuthSection["SignedOutCallbackPath"] ?? "/signout-callback-oidc";
+            options.SignedOutRedirectUri = "/Auth/Login";
+            options.ResponseType = OpenIdConnectResponseType.Code;
+            options.SaveTokens = true;
+            options.GetClaimsFromUserInfoEndpoint = true;
+
+            options.Scope.Clear();
+            var scopes = externalAuthSection.GetSection("Scopes").Get<string[]>() ?? ["openid", "profile", "email"];
+            foreach (var scope in scopes)
+            {
+                options.Scope.Add(scope);
+            }
+
+            var nameClaimType = externalAuthSection["NameClaimType"] ?? ClaimTypes.Name;
+            options.TokenValidationParameters.NameClaimType = nameClaimType;
+
+            options.Events = new OpenIdConnectEvents
+            {
+                OnTokenValidated = async context =>
+                {
+                    var identity = context.Principal?.Identity as ClaimsIdentity;
+                    if (identity is not null)
+                    {
+                        // Resolve the user's display name from common OIDC claim types
+                        var email = identity.FindFirst(nameClaimType)?.Value
+                                 ?? identity.FindFirst(ClaimTypes.Email)?.Value
+                                 ?? identity.FindFirst("email")?.Value
+                                 ?? identity.FindFirst("preferred_username")?.Value;
+
+                        if (email is not null && !identity.HasClaim(c => c.Type == ClaimTypes.Name))
+                        {
+                            identity.AddClaim(new Claim(ClaimTypes.Name, email));
+                        }
+
+                        // Default SSO users to the "User" role
+                        if (!identity.HasClaim(c => c.Type == ClaimTypes.Role))
+                        {
+                            identity.AddClaim(new Claim(ClaimTypes.Role, "User"));
+                        }
+                    }
+
+                    await Task.CompletedTask;
+                },
+                OnRemoteFailure = context =>
+                {
+                    context.Response.Redirect("/Auth/Login?error=sso_failed");
+                    context.HandleResponse();
+                    return Task.CompletedTask;
+                }
+            };
+        });
+}
 
 // Register Factories
 builder.Services.AddSingleton<ConfigurationProviderFactory>();
@@ -136,6 +223,7 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRequestTimeouts();
 
 app.MapControllerRoute(
     name: "default",

@@ -3,6 +3,7 @@ using FitnessAgentsWeb.Core.Interfaces;
 using FitnessAgentsWeb.Core.Services;
 using FitnessAgentsWeb.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
@@ -47,11 +48,17 @@ namespace FitnessAgentsWeb.Controllers
         /// SSE streaming endpoint — receives a chat message and streams back events.
         /// </summary>
         [HttpPost("/api/chat/stream")]
+        [RequestTimeout("SSE")]
         public async Task StreamChat()
         {
             Response.ContentType = "text/event-stream";
             Response.Headers["Cache-Control"] = "no-cache";
             Response.Headers["X-Accel-Buffering"] = "no";
+            Response.Headers["Connection"] = "keep-alive";
+
+            // Disable IIS/ASP.NET response buffering so SSE events flush immediately
+            var bufferingFeature = HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>();
+            bufferingFeature?.DisableBuffering();
 
             string userId = ResolveUserId();
 
